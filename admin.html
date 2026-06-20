@@ -62,7 +62,7 @@
         .cs-channel-list { display: flex; flex-direction: column; gap: 10px; }
         .cs-channel-card {
             background: #0f172a; border: 1px solid rgba(255,255,255,0.06); border-radius: 12px;
-            padding: 14px; display: flex; align-items: center; gap: 12px; cursor: pointer;
+            padding: 14px; display: flex; align-items: flex-start; gap: 12px; cursor: pointer;
             transition: border-color 0.15s ease;
         }
         .cs-channel-card:hover { border-color: rgba(59,130,246,0.4); }
@@ -74,7 +74,24 @@
         .cs-channel-info { flex: 1; min-width: 0; }
         .cs-channel-name { font-size: 14px; font-weight: 700; color: #f1f5f9; }
         .cs-channel-meta { font-size: 11px; color: #64748b; margin-top: 2px; }
-        .cs-channel-actions { display: flex; gap: 6px; flex-shrink: 0; }
+        .cs-channel-actions { display: flex; gap: 6px; flex-shrink: 0; flex-direction: column; }
+        .cs-category-header {
+            font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.6px;
+            margin: 16px 0 8px; padding-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .cs-category-header:first-child { margin-top: 0; }
+        .cs-badge { font-size: 9px; font-weight: 800; padding: 2px 6px; border-radius: 4px; margin-left: 4px; }
+        .cs-badge-sync { background: rgba(16,185,129,0.15); color: #10b981; }
+        .cs-badge-featured { background: rgba(245,158,11,0.15); color: #f59e0b; }
+
+        .edit-modal-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 5000;
+            display: flex; align-items: center; justify-content: center; padding: 20px;
+        }
+        .edit-modal-box {
+            background: #0f172a; border: 1px solid rgba(255,255,255,0.1); border-radius: 14px;
+            padding: 20px; max-width: 420px; width: 100%; max-height: 85vh; overflow-y: auto;
+        }
 
         .room-body { display: flex; }
 
@@ -266,8 +283,16 @@
                 <label>Aina/Category:</label>
                 <input type="text" id="new-channel-category" placeholder="Mfano: Michezo, Habari, Burudani">
 
+                <label>Mpangilio (Order) Ndani ya Category - namba ndogo huonekana kwanza:</label>
+                <input type="number" id="new-channel-order" placeholder="Mfano: 1" value="1" min="1">
+
                 <label>Link ya Logo (hiari):</label>
                 <input type="text" id="new-channel-logo" placeholder="https://domain.com/logo.png">
+
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:15px;">
+                    <input type="checkbox" id="new-channel-featured" style="width:auto; margin:0;">
+                    ⭐ Onyesha kwenye Hero Carousel (banner ya juu kwenye Home)
+                </label>
 
                 <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:15px;">
                     <input type="checkbox" id="new-channel-legacy-sync" style="width:auto; margin:0;">
@@ -276,6 +301,44 @@
                 <p class="hint-text" style="margin-top:-10px;">Ukichagua hii, video/ticker/ratiba/breaking news vitabadilika papo hapo unapobadilisha admin ya zamani. Chat na idadi ya watazamaji vitabaki tofauti (vya hapa pekee).</p>
 
                 <button onclick="createNewChannel()" style="width:100%;">➕ Unda Channel Hii</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============== EDIT CHANNEL MODAL ============== -->
+    <div class="edit-modal-overlay" id="edit-channel-modal-overlay" style="display:none;">
+        <div class="edit-modal-box">
+            <h3 style="margin-bottom:14px;">✏️ Hariri Channel</h3>
+            <input type="hidden" id="edit-channel-id">
+
+            <label>Jina la Channel:</label>
+            <input type="text" id="edit-channel-name">
+
+            <label>Maelezo Mafupi:</label>
+            <input type="text" id="edit-channel-desc">
+
+            <label>Aina/Category:</label>
+            <input type="text" id="edit-channel-category">
+
+            <label>Mpangilio (Order):</label>
+            <input type="number" id="edit-channel-order" min="1">
+
+            <label>Link ya Logo:</label>
+            <input type="text" id="edit-channel-logo">
+
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:15px;">
+                <input type="checkbox" id="edit-channel-featured" style="width:auto; margin:0;">
+                ⭐ Onyesha kwenye Hero Carousel
+            </label>
+
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:15px;">
+                <input type="checkbox" id="edit-channel-legacy-sync" style="width:auto; margin:0;">
+                🔗 Sync na BAM TECH TV ya zamani
+            </label>
+
+            <div class="flex-btns">
+                <button onclick="saveEditedChannel()" style="flex:1;">💾 Hifadhi Mabadiliko</button>
+                <button class="btn-secondary" onclick="closeEditChannelModal()" style="flex:1;">Ghairi</button>
             </div>
         </div>
     </div>
@@ -785,39 +848,106 @@
                     return;
                 }
 
-                Object.entries(data).forEach(([id, ch]) => {
-                    const card = document.createElement('div');
-                    card.className = 'cs-channel-card';
-                    const syncBadge = ch.isLegacySync ? ' <span style="color:#10b981; font-size:10px;">🔗 SYNC</span>' : '';
-                    card.innerHTML = `
-                        <div class="cs-channel-thumb">
-                            ${ch.logo ? `<img src="${escapeHTML(ch.logo)}" alt="" onerror="this.style.display='none';">` : '📺'}
-                        </div>
-                        <div class="cs-channel-info">
-                            <div class="cs-channel-name">${escapeHTML(ch.name)}${syncBadge}</div>
-                            <div class="cs-channel-meta">${escapeHTML(ch.category || 'Hakuna category')}</div>
-                        </div>
-                        <div class="cs-channel-actions">
-                            <button class="btn-danger btn-small" data-action="delete">Futa</button>
-                        </div>`;
-                    card.addEventListener('click', (e) => {
-                        if (e.target.closest('[data-action="delete"]')) return;
-                        enterChannelControlRoom(id, ch.name, ch.isLegacySync === true);
+                const channels = Object.entries(data).map(([id, ch]) => ({ id, ...ch }));
+
+                // Panga kwa category, kisha kwa order ndani ya kila category
+                const categorized = {};
+                channels.forEach(ch => {
+                    const cat = ch.category && ch.category.trim() !== '' ? ch.category.trim() : 'Burudani';
+                    if (!categorized[cat]) categorized[cat] = [];
+                    categorized[cat].push(ch);
+                });
+                Object.values(categorized).forEach(arr => arr.sort((a, b) => (a.order || 1) - (b.order || 1)));
+
+                Object.entries(categorized).forEach(([category, chList]) => {
+                    const catHeader = document.createElement('div');
+                    catHeader.className = 'cs-category-header';
+                    catHeader.innerText = `${category} (${chList.length})`;
+                    list.appendChild(catHeader);
+
+                    chList.forEach((ch) => {
+                        const card = document.createElement('div');
+                        card.className = 'cs-channel-card';
+                        const syncBadge = ch.isLegacySync ? ' <span class="cs-badge cs-badge-sync">🔗 SYNC</span>' : '';
+                        const featuredBadge = ch.featured ? ' <span class="cs-badge cs-badge-featured">⭐ FEATURED</span>' : '';
+                        card.innerHTML = `
+                            <div class="cs-channel-thumb">
+                                ${ch.logo ? `<img src="${escapeHTML(ch.logo)}" alt="" onerror="this.style.display='none';">` : '📺'}
+                            </div>
+                            <div class="cs-channel-info">
+                                <div class="cs-channel-name">${escapeHTML(ch.name)}${syncBadge}${featuredBadge}</div>
+                                <div class="cs-channel-meta">Order: ${ch.order || 1}</div>
+                            </div>
+                            <div class="cs-channel-actions">
+                                <button class="btn-secondary btn-small" data-action="edit">Hariri</button>
+                                <button class="btn-danger btn-small" data-action="delete">Futa</button>
+                            </div>`;
+                        card.addEventListener('click', (e) => {
+                            if (e.target.closest('[data-action="delete"]') || e.target.closest('[data-action="edit"]')) return;
+                            enterChannelControlRoom(ch.id, ch.name, ch.isLegacySync === true);
+                        });
+                        card.querySelector('[data-action="delete"]').addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            deleteChannel(ch.id, ch.name);
+                        });
+                        card.querySelector('[data-action="edit"]').addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            openEditChannelModal(ch);
+                        });
+                        list.appendChild(card);
                     });
-                    card.querySelector('[data-action="delete"]').addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        deleteChannel(id, ch.name);
-                    });
-                    list.appendChild(card);
                 });
             });
+        }
+
+        /* ============== EDIT CHANNEL MODAL ============== */
+        function openEditChannelModal(ch) {
+            document.getElementById('edit-channel-id').value = ch.id;
+            document.getElementById('edit-channel-name').value = ch.name || '';
+            document.getElementById('edit-channel-desc').value = ch.description || '';
+            document.getElementById('edit-channel-category').value = ch.category || '';
+            document.getElementById('edit-channel-order').value = ch.order || 1;
+            document.getElementById('edit-channel-logo').value = ch.logo || '';
+            document.getElementById('edit-channel-featured').checked = ch.featured === true;
+            document.getElementById('edit-channel-legacy-sync').checked = ch.isLegacySync === true;
+            document.getElementById('edit-channel-modal-overlay').style.display = 'flex';
+        }
+
+        function closeEditChannelModal() {
+            document.getElementById('edit-channel-modal-overlay').style.display = 'none';
+        }
+
+        function saveEditedChannel() {
+            const id = document.getElementById('edit-channel-id').value;
+            const name = document.getElementById('edit-channel-name').value.trim();
+            const description = document.getElementById('edit-channel-desc').value.trim();
+            const category = document.getElementById('edit-channel-category').value.trim();
+            const order = parseInt(document.getElementById('edit-channel-order').value) || 1;
+            const logo = document.getElementById('edit-channel-logo').value.trim();
+            const featured = document.getElementById('edit-channel-featured').checked;
+            const isLegacySync = document.getElementById('edit-channel-legacy-sync').checked;
+
+            if (name === "") {
+                alert('Jina la channel haliwezi kuwa tupu.');
+                return;
+            }
+
+            db.ref('channels_meta/' + id).update({
+                name, description, category: category || 'Burudani', order, logo, featured, isLegacySync
+            }).then(() => {
+                closeEditChannelModal();
+                showToast('Channel Imesasishwa ✓');
+                db.ref('admin_logs').push({ time: Date.now(), action: `Alihariri channel: ${name}` });
+            }).catch(err => alert('Hitilafu: ' + err.message));
         }
 
         function createNewChannel() {
             const name = document.getElementById('new-channel-name').value.trim();
             const description = document.getElementById('new-channel-desc').value.trim();
             const category = document.getElementById('new-channel-category').value.trim();
+            const order = parseInt(document.getElementById('new-channel-order').value) || 1;
             const logo = document.getElementById('new-channel-logo').value.trim();
+            const featured = document.getElementById('new-channel-featured').checked;
             const isLegacySync = document.getElementById('new-channel-legacy-sync').checked;
 
             if (name === "") {
@@ -827,12 +957,14 @@
 
             const newChannelRef = db.ref('channels_meta').push();
             newChannelRef.set({
-                name, description, category: category || 'Burudani', logo, isLegacySync, createdAt: Date.now()
+                name, description, category: category || 'Burudani', order, logo, featured, isLegacySync, createdAt: Date.now()
             }).then(() => {
                 document.getElementById('new-channel-name').value = '';
                 document.getElementById('new-channel-desc').value = '';
                 document.getElementById('new-channel-category').value = '';
+                document.getElementById('new-channel-order').value = '1';
                 document.getElementById('new-channel-logo').value = '';
+                document.getElementById('new-channel-featured').checked = false;
                 document.getElementById('new-channel-legacy-sync').checked = false;
                 showToast('Channel Mpya Imeundwa ✓');
                 db.ref('admin_logs').push({ time: Date.now(), action: `Aliunda channel mpya: ${name}` });
@@ -863,6 +995,7 @@
             loadCurrentConfigValues();
             loadLayoutValues();
             loadTickerValues();
+            loadBreakingNewsValue();
             startSavedPlaylistsListener();
             startAdminChatListener();
             startViewerCountListener();
@@ -1300,10 +1433,13 @@
         }
 
         /* ============== BREAKING NEWS TAB ============== */
-        channelRef.child('breaking_news').once('value').then(snap => {
-            const data = snap.val();
-            if (data && data.text) document.getElementById('breaking-text-field').value = data.text;
-        });
+        function loadBreakingNewsValue() {
+            channelRef.child('breaking_news').once('value').then(snap => {
+                const data = snap.val();
+                if (data && data.text) document.getElementById('breaking-text-field').value = data.text;
+                else document.getElementById('breaking-text-field').value = '';
+            });
+        }
 
         function publishBreakingNews(activate) {
             const text = document.getElementById('breaking-text-field').value.trim();
@@ -1672,178 +1808,4 @@
         }
 
         function addScheduledItem() {
-            const timeVal = document.getElementById('new-sched-time').value;
-            const program = document.getElementById('new-sched-program').value.trim();
-            const liveMode = document.getElementById('new-sched-live').value;
-
-            if (!timeVal || program === "") {
-                alert('Jaza tarehe/saa na jina la kipindi.');
-                return;
-            }
-
-            const triggerTime = new Date(timeVal).getTime();
-            if (triggerTime <= Date.now()) {
-                alert('Chagua muda ulioko mbeleni, sio uliopita.');
-                return;
-            }
-
-            channelRef.child('scheduled_changes').push({
-                triggerTime,
-                programTitle: program,
-                liveMode,
-                executed: false
-            }).then(() => {
-                document.getElementById('new-sched-program').value = '';
-                showToast('Mpango Umepangwa ✓');
-            });
-        }
-
-        // "Engine" rahisi: ikiwa dashboard hii (au index.html) iko wazi, kila sekunde 20
-        // inakagua kama kuna scheduled change ambayo muda wake umefika, na kuitekeleza.
-        function startSchedulerEngine() {
-            setInterval(() => {
-                channelRef.child('scheduled_changes').once('value').then(snap => {
-                    const data = snap.val();
-                    if (!data) return;
-                    Object.entries(data).forEach(([key, item]) => {
-                        if (!item.executed && Date.now() >= item.triggerTime) {
-                            const updates = {
-                                programTitle: item.programTitle,
-                                showLive: item.liveMode !== 'OFF',
-                                liveText: item.liveMode !== 'OFF' ? item.liveMode : 'LIVE'
-                            };
-                            channelRef.child('tv_config').update(updates);
-                            channelRef.child('scheduled_changes/' + key + '/executed').set(true);
-                            db.ref('admin_logs').push({ time: Date.now(), action: `Scheduler ilitekeleza: ${item.programTitle}` });
-                        }
-                    });
-                });
-            }, 20000);
-        }
-
-        /* ============== IDADI HALISI YA WATAZAMAJI + STATS ============== */
-        let peakViewers = 0;
-        const viewerHistory = [];
-
-        function startViewerCountListener() {
-            channelRef.child('presence/viewers').on('value', (snapshot) => {
-                const count = snapshot.numChildren();
-                document.getElementById('admin-viewer-count').innerText = count.toLocaleString();
-                document.getElementById('stat-current-viewers').innerText = count.toLocaleString();
-                if (count > peakViewers) {
-                    peakViewers = count;
-                    document.getElementById('stat-peak-viewers').innerText = peakViewers.toLocaleString();
-                }
-                viewerHistory.push({ t: Date.now(), v: count });
-                if (viewerHistory.length > 30) viewerHistory.shift();
-                drawViewerChart();
-            });
-        }
-
-        function startStatsListener() {
-            channelRef.child('chat_messages').on('value', (snapshot) => {
-                document.getElementById('stat-total-messages').innerText = snapshot.numChildren().toLocaleString();
-            });
-        }
-
-        function drawViewerChart() {
-            const canvas = document.getElementById('viewer-chart');
-            if (!canvas.getContext) return;
-            const ctx = canvas.getContext('2d');
-            const w = canvas.clientWidth || 300;
-            const h = 200;
-            canvas.width = w; canvas.height = h;
-            ctx.clearRect(0, 0, w, h);
-
-            if (viewerHistory.length < 2) return;
-            const maxV = Math.max(...viewerHistory.map(p => p.v), 1);
-            const stepX = w / (viewerHistory.length - 1);
-
-            ctx.beginPath();
-            ctx.strokeStyle = '#3b82f6';
-            ctx.lineWidth = 2;
-            viewerHistory.forEach((point, i) => {
-                const x = i * stepX;
-                const y = h - (point.v / maxV) * (h - 20) - 10;
-                if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-            });
-            ctx.stroke();
-
-            ctx.lineTo(w, h);
-            ctx.lineTo(0, h);
-            ctx.closePath();
-            ctx.fillStyle = 'rgba(59,130,246,0.1)';
-            ctx.fill();
-        }
-
-        /* ============== LIVE CHAT TAB ============== */
-        let selectedReplyMsgId = null;
-        const renderedAdminMessages = {};
-
-        function startAdminChatListener() {
-            const viewer = document.getElementById('admin-chat-viewer');
-
-            channelRef.child('chat_messages').limitToLast(100).on('child_added', (snapshot) => {
-                renderAdminMessage(snapshot.key, snapshot.val(), viewer);
-            });
-
-            channelRef.child('chat_messages').on('child_changed', (snapshot) => {
-                renderAdminReplies(snapshot.key, snapshot.val());
-            });
-        }
-
-        function renderAdminMessage(msgId, data, viewer) {
-            if (renderedAdminMessages[msgId]) return;
-            renderedAdminMessages[msgId] = true;
-
-            const emptyState = viewer.querySelector('.empty-state');
-            if (emptyState) emptyState.remove();
-
-            const div = document.createElement('div');
-            div.className = 'chat-row';
-            div.id = 'admin-row-' + msgId;
-
-            const isAdmin = data.isAdmin === true;
-            const userLabel = isAdmin ? 'BAM TECH (Admin)' : (data.user || 'Mhudhuriaji');
-            const time = data.time ? new Date(data.time).toLocaleTimeString() : '';
-
-            div.innerHTML = `<span style="color:#64748b; font-size:10px;">[${time}]</span>
-                              <strong class="${isAdmin ? 'is-admin' : ''}">${escapeHTML(userLabel)}:</strong>
-                              <span>${escapeHTML(data.text)}</span>
-                              <span class="reply-link" data-msgid="${msgId}" data-userlabel="${escapeHTML(userLabel)}">[JIBU]</span>
-                              <div class="reply-thread-admin" id="admin-thread-${msgId}"></div>`;
-
-            div.querySelector('.reply-link').addEventListener('click', function() {
-                setupReplyTag(this.getAttribute('data-msgid'), this.getAttribute('data-userlabel'));
-            });
-
-            viewer.appendChild(div);
-            viewer.scrollTop = viewer.scrollHeight;
-
-            if (data.replies) renderAdminReplies(msgId, data);
-        }
-
-        function renderAdminReplies(msgId, data) {
-            const threadDiv = document.getElementById('admin-thread-' + msgId);
-            if (!threadDiv || !data.replies) return;
-            threadDiv.innerHTML = '';
-            Object.values(data.replies).forEach((reply) => {
-                const r = document.createElement('div');
-                r.className = 'reply-row';
-                r.innerText = '↳ Wewe: ' + reply.text;
-                threadDiv.appendChild(r);
-            });
-        }
-
-        function setupReplyTag(msgId, userLabel) {
-            selectedReplyMsgId = msgId;
-            document.getElementById('reply-target-label').innerText = `Unajibu @${userLabel}:`;
-            document.getElementById('admin-reply-input').placeholder = `Jibu kwa ${userLabel}...`;
-            document.getElementById('admin-reply-input').focus();
-        }
-
-        function sendAdminReplyDirect() {
-            const text = document.getElementById('admin-reply-input').value.trim();
-            if (text === "") return;
-
-            if (!selectedRe
+            const timeVal
