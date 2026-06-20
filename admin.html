@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BAM TECH TV - Control Room</title>
+    <title>BAM TECH WEB APP - Control Room</title>
 
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
@@ -233,7 +233,7 @@
 <body>
 
     <div class="lock-container" id="gatekeeper">
-        <h2 style="font-size:18px; margin-bottom:5px;">🎛️ BAM TECH TV PANEL</h2>
+        <h2 style="font-size:18px; margin-bottom:5px;">🎛️ BAM TECH WEB APP PANEL</h2>
         <p style="font-size:12px; color:#64748b; margin-bottom:20px;">Ukurasa huu ni salama na wa siri wa Mmiliki pekee.</p>
         <label>Ingiza PIN Kuu ya Usimamizi:</label>
         <input type="password" id="master-pin" placeholder="••••••">
@@ -245,7 +245,7 @@
     <!-- ============== CHANNEL SELECTOR (Orodha ya Channel Zote) ============== -->
     <div class="channel-selector-view" id="channel-selector-view" style="display:none;">
         <div class="cs-topbar">
-            <div class="topbar-brand-title">BAM TECH <span>TV</span> · Usimamizi wa Channel</div>
+            <div class="topbar-brand-title">BAM TECH <span>WEB APP</span> · Usimamizi wa Channel</div>
         </div>
         <div class="cs-body">
             <h2 style="margin-bottom:6px;">📺 Channel Zako</h2>
@@ -269,6 +269,12 @@
                 <label>Link ya Logo (hiari):</label>
                 <input type="text" id="new-channel-logo" placeholder="https://domain.com/logo.png">
 
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:15px;">
+                    <input type="checkbox" id="new-channel-legacy-sync" style="width:auto; margin:0;">
+                    🔗 Hii ni "BAM TECH TV" ya zamani - isome Stream/Ticker/EPG kutoka admin ya zamani (bam075.github.io)
+                </label>
+                <p class="hint-text" style="margin-top:-10px;">Ukichagua hii, video/ticker/ratiba/breaking news vitabadilika papo hapo unapobadilisha admin ya zamani. Chat na idadi ya watazamaji vitabaki tofauti (vya hapa pekee).</p>
+
                 <button onclick="createNewChannel()" style="width:100%;">➕ Unda Channel Hii</button>
             </div>
         </div>
@@ -279,7 +285,7 @@
             <div class="topbar-brand">
                 <button class="menu-toggle-btn" onclick="toggleSidebar()">☰</button>
                 <button class="back-to-channels-btn" onclick="exitChannelControlRoom()">← Channel Zote</button>
-                <div class="topbar-brand-title" id="cr-channel-name">BAM TECH <span>TV</span></div>
+                <div class="topbar-brand-title" id="cr-channel-name">Channel <span>·</span> Control Room</div>
             </div>
             <div class="topbar-status">
                 <span class="pulse-dot"></span>
@@ -314,6 +320,10 @@
 
                 <!-- ============ TAB: BROADCAST ============ -->
                 <div class="tab-panel active" id="tab-broadcast">
+                    <div class="card" id="legacy-sync-warning" style="display:none; border-color: rgba(16,185,129,0.4); background: rgba(16,185,129,0.06);">
+                        <h2 style="color:#10b981;">🔗 Channel ya Sync (Imeunganishwa na Admin ya Zamani)</h2>
+                        <p class="hint-text" style="margin-top:-5px; margin-bottom:0;">Stream URL, Ticker, EPG, na Breaking News za hii channel ZINASOMWA moja kwa moja kutoka admin ya zamani (bam075.github.io/admin.html). Mabadiliko unayoyafanya HAPA chini kwenye sehemu hizo HAYATAONEKANA - yabadilishe kwenye admin ya zamani badala yake.</p>
+                    </div>
                     <div class="card">
                         <h2>📡 Udhibiti Mkuu wa Matangazo</h2>
 
@@ -778,12 +788,13 @@
                 Object.entries(data).forEach(([id, ch]) => {
                     const card = document.createElement('div');
                     card.className = 'cs-channel-card';
+                    const syncBadge = ch.isLegacySync ? ' <span style="color:#10b981; font-size:10px;">🔗 SYNC</span>' : '';
                     card.innerHTML = `
                         <div class="cs-channel-thumb">
                             ${ch.logo ? `<img src="${escapeHTML(ch.logo)}" alt="" onerror="this.style.display='none';">` : '📺'}
                         </div>
                         <div class="cs-channel-info">
-                            <div class="cs-channel-name">${escapeHTML(ch.name)}</div>
+                            <div class="cs-channel-name">${escapeHTML(ch.name)}${syncBadge}</div>
                             <div class="cs-channel-meta">${escapeHTML(ch.category || 'Hakuna category')}</div>
                         </div>
                         <div class="cs-channel-actions">
@@ -791,7 +802,7 @@
                         </div>`;
                     card.addEventListener('click', (e) => {
                         if (e.target.closest('[data-action="delete"]')) return;
-                        enterChannelControlRoom(id, ch.name);
+                        enterChannelControlRoom(id, ch.name, ch.isLegacySync === true);
                     });
                     card.querySelector('[data-action="delete"]').addEventListener('click', (e) => {
                         e.stopPropagation();
@@ -807,6 +818,7 @@
             const description = document.getElementById('new-channel-desc').value.trim();
             const category = document.getElementById('new-channel-category').value.trim();
             const logo = document.getElementById('new-channel-logo').value.trim();
+            const isLegacySync = document.getElementById('new-channel-legacy-sync').checked;
 
             if (name === "") {
                 alert('Weka jina la channel kwanza.');
@@ -815,12 +827,13 @@
 
             const newChannelRef = db.ref('channels_meta').push();
             newChannelRef.set({
-                name, description, category: category || 'Burudani', logo, createdAt: Date.now()
+                name, description, category: category || 'Burudani', logo, isLegacySync, createdAt: Date.now()
             }).then(() => {
                 document.getElementById('new-channel-name').value = '';
                 document.getElementById('new-channel-desc').value = '';
                 document.getElementById('new-channel-category').value = '';
                 document.getElementById('new-channel-logo').value = '';
+                document.getElementById('new-channel-legacy-sync').checked = false;
                 showToast('Channel Mpya Imeundwa ✓');
                 db.ref('admin_logs').push({ time: Date.now(), action: `Aliunda channel mpya: ${name}` });
             }).catch(err => alert('Hitilafu: ' + err.message));
@@ -836,13 +849,14 @@
             }
         }
 
-        function enterChannelControlRoom(channelId, channelName) {
+        function enterChannelControlRoom(channelId, channelName, isLegacySync) {
             activeChannelId = channelId;
             channelRef = db.ref('channels/' + channelId);
 
             document.getElementById('channel-selector-view').style.display = 'none';
             document.getElementById('main-panel').style.display = 'block';
             document.getElementById('cr-channel-name').innerHTML = `${escapeHTML(channelName)} <span>·</span> Control Room`;
+            document.getElementById('legacy-sync-warning').style.display = isLegacySync ? 'block' : 'none';
 
             switchTab('broadcast');
 
@@ -1832,34 +1846,4 @@
             const text = document.getElementById('admin-reply-input').value.trim();
             if (text === "") return;
 
-            if (!selectedReplyMsgId) {
-                alert('Chagua [JIBU] kwenye ujumbe husika kwanza, kabla ya kutuma jibu.');
-                return;
-            }
-
-            const newReplyKey = db.ref().push().key;
-            channelRef.child('chat_messages/' + selectedReplyMsgId + '/replies/' + newReplyKey).set({
-                text: text,
-                time: Date.now(),
-                fromAdmin: true
-            }).then(() => {
-                document.getElementById('admin-reply-input').value = '';
-            }).catch((err) => alert('Hitilafu: ' + err.message));
-        }
-
-        document.getElementById('admin-reply-input').addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') sendAdminReplyDirect();
-        });
-
-        function clearChatLog() {
-            if (confirm("Je, una uhakika unataka kufuta maoni yote kwenye orodha? Hatua hii haiwezi kurudishwa.")) {
-                channelRef.child('chat_messages').remove().then(() => {
-                    document.getElementById('admin-chat-viewer').innerHTML = '<div class="empty-state">Bado hakuna maoni...</div>';
-                    Object.keys(renderedAdminMessages).forEach(k => delete renderedAdminMessages[k]);
-                });
-            }
-        }
-    </script>
-</body>
-</html>
-
+            if (!selectedRe
