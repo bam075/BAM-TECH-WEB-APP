@@ -1,1 +1,1865 @@
+<!DOCTYPE html>
+<html lang="sw">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BAM TECH TV - Control Room</title>
+
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: #020617;
+            color: #f8fafc;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+        }
+
+        /* ===== LOCK SCREEN ===== */
+        .lock-container {
+            max-width: 400px; margin: 100px auto; background: #0f172a; padding: 30px;
+            border-radius: 16px; border: 1px solid rgba(255,255,255,0.08); text-align: center;
+        }
+        .lock-error { color: #f87171; font-size: 12px; margin-top: 10px; display: none; }
+        .lock-timer { color: #94a3b8; font-size: 12px; margin-top: 10px; display: none; }
+
+        /* ===== CONTROL ROOM SHELL ===== */
+        .control-room { display: none; min-height: 100vh; }
+        .topbar {
+            display: flex; align-items: center; justify-content: space-between;
+            background: #0f172a; border-bottom: 1px solid rgba(255,255,255,0.08);
+            padding: 12px 18px; position: sticky; top: 0; z-index: 100;
+        }
+        .topbar-brand { display: flex; align-items: center; gap: 10px; }
+        .topbar-brand-title { font-size: 14px; font-weight: 900; letter-spacing: 0.5px; }
+        .topbar-brand-title span { color: #3b82f6; font-style: italic; }
+        .topbar-status {
+            display: inline-flex; align-items: center; gap: 6px; background: rgba(16,185,129,0.1);
+            border: 1px solid rgba(16,185,129,0.3); color: #10b981; font-size: 11px; font-weight: 700;
+            padding: 5px 10px; border-radius: 8px;
+        }
+        .pulse-dot { width: 6px; height: 6px; background: #10b981; border-radius: 50%; animation: pulse 1.2s infinite; }
+        @keyframes pulse { 0% { opacity: 0.3; } 50% { opacity: 1; } 100% { opacity: 0.3; } }
+        .menu-toggle-btn {
+            display: none; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+            color: white; padding: 8px 12px; border-radius: 8px; font-size: 13px; cursor: pointer;
+        }
+        .back-to-channels-btn {
+            background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+            color: white; padding: 8px 12px; border-radius: 8px; font-size: 12px; cursor: pointer; font-weight: 600;
+        }
+
+        /* ===== CHANNEL SELECTOR VIEW ===== */
+        .channel-selector-view { min-height: 100vh; }
+        .cs-topbar {
+            background: #0f172a; border-bottom: 1px solid rgba(255,255,255,0.08); padding: 14px 18px;
+        }
+        .cs-body { max-width: 800px; margin: 0 auto; padding: 20px 18px 60px; }
+        .cs-channel-list { display: flex; flex-direction: column; gap: 10px; }
+        .cs-channel-card {
+            background: #0f172a; border: 1px solid rgba(255,255,255,0.06); border-radius: 12px;
+            padding: 14px; display: flex; align-items: center; gap: 12px; cursor: pointer;
+            transition: border-color 0.15s ease;
+        }
+        .cs-channel-card:hover { border-color: rgba(59,130,246,0.4); }
+        .cs-channel-thumb {
+            width: 64px; height: 36px; border-radius: 8px; background: linear-gradient(135deg,#1e3a8a,#0f172a);
+            display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden; font-size: 18px;
+        }
+        .cs-channel-thumb img { width: 100%; height: 100%; object-fit: cover; }
+        .cs-channel-info { flex: 1; min-width: 0; }
+        .cs-channel-name { font-size: 14px; font-weight: 700; color: #f1f5f9; }
+        .cs-channel-meta { font-size: 11px; color: #64748b; margin-top: 2px; }
+        .cs-channel-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+        .room-body { display: flex; }
+
+        /* ===== SIDEBAR NAV (STUDIO STYLE) ===== */
+        .sidebar-nav {
+            width: 220px; flex-shrink: 0; background: #0f172a; border-right: 1px solid rgba(255,255,255,0.06);
+            min-height: calc(100vh - 53px); padding: 14px 10px;
+        }
+        .nav-section-label {
+            font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 1px;
+            font-weight: 700; padding: 10px 10px 6px;
+        }
+        .nav-item {
+            display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px;
+            font-size: 13px; font-weight: 600; color: #94a3b8; cursor: pointer; margin-bottom: 2px;
+            transition: background 0.15s, color 0.15s;
+        }
+        .nav-item:hover { background: rgba(255,255,255,0.04); color: #e2e8f0; }
+        .nav-item.active { background: rgba(59,130,246,0.12); color: #60a5fa; }
+        .nav-item .nav-icon { font-size: 15px; width: 20px; text-align: center; }
+
+        /* ===== MAIN PANEL AREA ===== */
+        .panel-area { flex: 1; padding: 20px; max-width: 900px; }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+
+        .card { background: #0f172a; border-radius: 14px; padding: 20px; border: 1px solid rgba(255, 255, 255, 0.05); margin-bottom: 20px; }
+        .card-grid-2 { display: grid; grid-template-columns: 1fr; gap: 20px; }
+        @media(min-width: 768px) { .card-grid-2 { grid-template-columns: 1fr 350px; } }
+
+        h2, h3 { color: #3b82f6; margin-top: 0; margin-bottom: 15px; text-transform: uppercase; font-size: 15px; letter-spacing: 0.5px; }
+        h3 { font-size: 13px; color: #94a3b8; }
+        label { display: block; font-size: 12px; color: #94a3b8; margin-bottom: 6px; font-weight: 600; }
+        input[type="text"], input[type="password"], input[type="number"], input[type="datetime-local"], select, textarea {
+            width: 100%; background: #1e293b; border: 1px solid rgba(255,255,255,0.1);
+            padding: 10px 12px; border-radius: 8px; color: white; outline: none;
+            margin-bottom: 15px; font-size: 13px; font-family: inherit;
+        }
+        textarea { resize: vertical; min-height: 60px; }
+
+        .color-input {
+            width: 100%; height: 42px; background: #1e293b; border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px; cursor: pointer; margin-bottom: 15px; padding: 4px;
+        }
+        input[type="range"] {
+            width: 100%; margin-bottom: 15px; accent-color: #3b82f6; cursor: pointer;
+        }
+        .ticker-preview-box {
+            background: #000; border-radius: 10px; padding: 0; margin-bottom: 18px;
+            border: 1px solid rgba(255,255,255,0.1); overflow: hidden; height: 44px;
+            display: flex; align-items: center; position: relative;
+        }
+        .ticker-preview-text {
+            white-space: nowrap; padding-left: 14px; font-size: 11.5px; font-weight: 600; color: #e2e8f0;
+        }
+
+        button { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; border: none; padding: 10px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 13px; }
+        button:hover { background: #1d4ed8; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-danger { background: #dc2626; } .btn-danger:hover { background: #b91c1c; }
+        .btn-secondary { background: #1e293b; border: 1px solid rgba(255,255,255,0.1); }
+        .btn-secondary:hover { background: #334155; }
+        .btn-small { padding: 6px 10px; font-size: 11px; }
+        .flex-btns { display: flex; gap: 10px; flex-wrap: wrap; }
+        .hint-text { font-size: 11px; color: #64748b; margin-top: -10px; margin-bottom: 15px; }
+
+        /* Chat */
+        .chat-box-admin { height: 320px; overflow-y: auto; background: #020617; border-radius: 8px; padding: 10px; border: 1px solid rgba(255,255,255,0.05); display: flex; flex-direction: column; gap: 10px; }
+        .chat-row { font-size: 12px; border-bottom: 1px solid rgba(255,255,255,0.03); padding-bottom: 8px; }
+        .chat-row strong { color: #60a5fa; }
+        .chat-row strong.is-admin { color: #f59e0b; }
+        .reply-link { color: #f59e0b; font-weight: bold; cursor: pointer; float: right; font-size: 11px; }
+        .reply-thread-admin { margin-top: 6px; margin-left: 12px; padding-left: 10px; border-left: 2px solid rgba(245,158,11,0.4); display: flex; flex-direction: column; gap: 4px; }
+        .reply-thread-admin .reply-row { font-size: 11px; color: #fbbf24; }
+        .empty-state { color: #64748b; font-size: 12px; text-align: center; padding: 20px 0; }
+
+        /* Ads library */
+        .ads-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px; }
+        .ad-item {
+            background: #1e293b; border: 1px solid rgba(255,255,255,0.06); border-radius: 10px;
+            padding: 12px; display: flex; align-items: center; gap: 12px; justify-content: space-between;
+        }
+        .ad-item.is-live { border-color: rgba(16,185,129,0.5); background: rgba(16,185,129,0.05); }
+        .ad-item-info { flex: 1; min-width: 0; }
+        .ad-item-name { font-size: 13px; font-weight: 700; color: #f1f5f9; }
+        .ad-item-meta { font-size: 11px; color: #64748b; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .ad-item-badge { font-size: 9px; font-weight: 800; background: #10b981; color: #000; padding: 2px 6px; border-radius: 4px; margin-left: 6px; }
+        .status-badge { font-size: 9px; font-weight: 800; padding: 2px 6px; border-radius: 4px; margin-left: 6px; }
+        .status-badge.status-working { background: #10b981; color: #000; }
+        .status-badge.status-failed { background: #dc2626; color: #fff; }
+        .status-badge.status-testing { background: #64748b; color: #fff; }
+        .ad-item.status-row-failed { opacity: 0.5; }
+        .ad-item-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+        /* EPG */
+        .epg-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px; }
+        .epg-item {
+            background: #1e293b; border: 1px solid rgba(255,255,255,0.06); border-radius: 10px;
+            padding: 12px; display: flex; align-items: center; gap: 12px; justify-content: space-between;
+        }
+        .epg-item.is-active { border-color: rgba(16,185,129,0.5); background: rgba(16,185,129,0.05); }
+        .epg-item-info { flex: 1; min-width: 0; }
+        .epg-item-time { font-size: 11px; color: #94a3b8; font-weight: 700; }
+        .epg-item-name { font-size: 13px; font-weight: 700; color: #f1f5f9; margin-top: 2px; }
+        .epg-item-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+        /* Scheduler */
+        .scheduled-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px; }
+        .scheduled-item {
+            background: #1e293b; border: 1px solid rgba(245,158,11,0.3); border-radius: 10px;
+            padding: 12px; display: flex; align-items: center; gap: 12px; justify-content: space-between;
+        }
+        .scheduled-item-info { flex: 1; min-width: 0; }
+        .scheduled-item-time { font-size: 11px; color: #fbbf24; font-weight: 700; }
+        .scheduled-item-desc { font-size: 12px; color: #e2e8f0; margin-top: 2px; }
+
+        /* Logs */
+        .log-list { display: flex; flex-direction: column; gap: 8px; max-height: 400px; overflow-y: auto; }
+        .log-row { font-size: 12px; color: #94a3b8; border-bottom: 1px solid rgba(255,255,255,0.03); padding-bottom: 8px; }
+        .log-row .log-time { color: #64748b; font-size: 10px; }
+
+        /* Stats */
+        .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 15px; }
+        @media(min-width: 600px) { .stats-grid { grid-template-columns: repeat(3, 1fr); } }
+        .stat-box { background: #1e293b; border-radius: 10px; padding: 14px; text-align: center; }
+        .stat-box .stat-value { font-size: 22px; font-weight: 900; color: #3b82f6; }
+        .stat-box .stat-label { font-size: 10px; color: #94a3b8; text-transform: uppercase; margin-top: 4px; letter-spacing: 0.5px; }
+
+        /* Layout/PiP controls */
+        .layout-preview {
+            background: #000; border-radius: 10px; aspect-ratio: 16/9; position: relative; overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.1); margin-bottom: 15px;
+        }
+        .layout-preview .main-zone { position: absolute; inset: 0; background: linear-gradient(135deg,#1e3a8a,#1e293b); display:flex; align-items:center; justify-content:center; font-size:11px; color:#60a5fa; font-weight:700; }
+        .layout-preview .pip-zone { position: absolute; background: linear-gradient(135deg,#f59e0b,#92400e); display:flex; align-items:center; justify-content:center; font-size:10px; color:#fff; font-weight:700; border-radius: 6px; border: 2px solid #0f172a; overflow: hidden; }
+
+        .toast { position: fixed; top: 20px; right: 20px; background: #10b981; color: white; padding: 10px 20px; border-radius: 6px; font-size: 12px; font-weight: bold; display: none; z-index: 9999; }
+
+        /* Mobile sidebar behavior */
+        @media (max-width: 760px) {
+            .menu-toggle-btn { display: inline-block; }
+            .sidebar-nav {
+                position: fixed; left: -240px; top: 53px; bottom: 0; z-index: 200;
+                transition: left 0.2s ease; box-shadow: 10px 0 30px rgba(0,0,0,0.5); width: 220px;
+                overflow-y: auto;
+            }
+            .sidebar-nav.open { left: 0; }
+            .sidebar-overlay {
+                display: none; position: fixed; inset: 0; top: 53px; background: rgba(0,0,0,0.5); z-index: 150;
+            }
+            .sidebar-overlay.open { display: block; }
+            .panel-area { padding: 14px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="lock-container" id="gatekeeper">
+        <h2 style="font-size:18px; margin-bottom:5px;">🎛️ BAM TECH TV PANEL</h2>
+        <p style="font-size:12px; color:#64748b; margin-bottom:20px;">Ukurasa huu ni salama na wa siri wa Mmiliki pekee.</p>
+        <label>Ingiza PIN Kuu ya Usimamizi:</label>
+        <input type="password" id="master-pin" placeholder="••••••">
+        <button onclick="unlockDashboard()" style="width:100%;" id="unlock-btn">INGIA DASHBODI</button>
+        <p class="lock-error" id="lock-error">❌ PIN sio sahihi! Jaribu tena.</p>
+        <p class="lock-timer" id="lock-timer"></p>
+    </div>
+
+    <!-- ============== CHANNEL SELECTOR (Orodha ya Channel Zote) ============== -->
+    <div class="channel-selector-view" id="channel-selector-view" style="display:none;">
+        <div class="cs-topbar">
+            <div class="topbar-brand-title">BAM TECH <span>TV</span> · Usimamizi wa Channel</div>
+        </div>
+        <div class="cs-body">
+            <h2 style="margin-bottom:6px;">📺 Channel Zako</h2>
+            <p class="hint-text" style="margin-top:-2px;">Chagua channel kuingia kwenye Control Room yake, au ongeza channel mpya.</p>
+
+            <div class="cs-channel-list" id="cs-channel-list">
+                <div class="empty-state">Inapakia channel...</div>
+            </div>
+
+            <div class="card" style="margin-top:20px;">
+                <h3 style="margin-bottom:14px;">➕ Ongeza Channel Mpya</h3>
+                <label>Jina la Channel:</label>
+                <input type="text" id="new-channel-name" placeholder="Mfano: BAM TECH Sports">
+
+                <label>Maelezo Mafupi:</label>
+                <input type="text" id="new-channel-desc" placeholder="Mfano: Habari za michezo na burudani">
+
+                <label>Aina/Category:</label>
+                <input type="text" id="new-channel-category" placeholder="Mfano: Michezo, Habari, Burudani">
+
+                <label>Link ya Logo (hiari):</label>
+                <input type="text" id="new-channel-logo" placeholder="https://domain.com/logo.png">
+
+                <button onclick="createNewChannel()" style="width:100%;">➕ Unda Channel Hii</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="control-room" id="main-panel">
+        <div class="topbar">
+            <div class="topbar-brand">
+                <button class="menu-toggle-btn" onclick="toggleSidebar()">☰</button>
+                <button class="back-to-channels-btn" onclick="exitChannelControlRoom()">← Channel Zote</button>
+                <div class="topbar-brand-title" id="cr-channel-name">BAM TECH <span>TV</span></div>
+            </div>
+            <div class="topbar-status">
+                <span class="pulse-dot"></span>
+                <span id="admin-viewer-count">0</span> Watazamaji
+            </div>
+        </div>
+
+        <div class="room-body">
+            <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
+            <nav class="sidebar-nav" id="sidebar-nav">
+                <div class="nav-section-label">Matangazo</div>
+                <div class="nav-item active" data-tab="broadcast" onclick="switchTab('broadcast')"><span class="nav-icon">📡</span> Broadcast</div>
+                <div class="nav-item" data-tab="playlist" onclick="switchTab('playlist')"><span class="nav-icon">📺</span> Playlist Browser</div>
+                <div class="nav-item" data-tab="layout" onclick="switchTab('layout')"><span class="nav-icon">🖥️</span> Mpangilio wa Player</div>
+                <div class="nav-item" data-tab="breaking" onclick="switchTab('breaking')"><span class="nav-icon">🚨</span> Breaking News</div>
+                <div class="nav-item" data-tab="ticker" onclick="switchTab('ticker')"><span class="nav-icon">📜</span> Ticker (Maandishi)</div>
+
+                <div class="nav-section-label">Maudhui</div>
+                <div class="nav-item" data-tab="ads" onclick="switchTab('ads')"><span class="nav-icon">🎬</span> Maktaba ya Matangazo</div>
+                <div class="nav-item" data-tab="epg" onclick="switchTab('epg')"><span class="nav-icon">📅</span> Ratiba (EPG)</div>
+                <div class="nav-item" data-tab="scheduler" onclick="switchTab('scheduler')"><span class="nav-icon">⏰</span> Kupanga Mapema</div>
+
+                <div class="nav-section-label">Watazamaji</div>
+                <div class="nav-item" data-tab="chat" onclick="switchTab('chat')"><span class="nav-icon">💬</span> Live Chat</div>
+                <div class="nav-item" data-tab="stats" onclick="switchTab('stats')"><span class="nav-icon">📊</span> Takwimu</div>
+
+                <div class="nav-section-label">Mfumo</div>
+                <div class="nav-item" data-tab="logs" onclick="switchTab('logs')"><span class="nav-icon">🛡️</span> Kumbukumbu za Admin</div>
+            </nav>
+
+            <div class="panel-area">
+
+                <!-- ============ TAB: BROADCAST ============ -->
+                <div class="tab-panel active" id="tab-broadcast">
+                    <div class="card">
+                        <h2>📡 Udhibiti Mkuu wa Matangazo</h2>
+
+                        <label>1. Link Kuu ya Mkururo wa Video (.m3u8 au IPTV Stream URL):</label>
+                        <input type="text" id="stream-url-field" placeholder="https://domain.com/live/stream.m3u8">
+
+                        <label>2. Jina la Kipindi (Litaonekana Navbar - kwa vipindi visivyo na logo):</label>
+                        <input type="text" id="program-title-field" placeholder="Mfano: Tech Insights na Bryan Alex">
+
+                        <label>3. Alama Maalum ya Live / Mubashara:</label>
+                        <select id="live-badge-selector">
+                            <option value="OFF">Zima Alama Zote (Hali ya Kawaida)</option>
+                            <option value="LIVE">Washa na Uandike "LIVE"</option>
+                            <option value="MUBASHARA">Washa na Uandike "MUBASHARA"</option>
+                        </select>
+
+                        <p class="hint-text">Kumbuka: Ticker (maandishi ya kupita chini) sasa inadhibitiwa kwenye tab "📜 Ticker", na L-Style kwenye tab "🎬 Maktaba ya Matangazo".</p>
+
+                        <button onclick="publishLiveChanges()" style="width: 100%; padding:14px; font-size:14px;">🚀 RUSHA MABADILIKO HEWANI SASA HIVI</button>
+                    </div>
+                </div>
+
+                <!-- ============ TAB: PLAYLIST BROWSER ============ -->
+                <div class="tab-panel" id="tab-playlist">
+                    <div class="card">
+                        <h2>📺 Playlist Browser (M3U/M3U8)</h2>
+                        <p class="hint-text" style="margin-top:-5px;">Weka link ya playlist (faili lenye orodha ya channel nyingi) ili kuvinjari na kuchagua channel kwa haraka.</p>
+
+                        <label>Link ya Playlist (.m3u au .m3u8):</label>
+                        <input type="text" id="playlist-url-field" placeholder="https://iptv-org.github.io/iptv/countries/tz.m3u">
+
+                        <div class="flex-btns" style="margin-bottom:15px;">
+                            <button onclick="loadPlaylist()" style="flex:1;">📥 Pakua na Onyesha Channel</button>
+                            <button class="btn-secondary" onclick="savePlaylistToLibrary()" style="flex:1;">💾 Hifadhi Link Hii</button>
+                        </div>
+
+                        <div id="playlist-loading-msg" class="hint-text" style="display:none;">⏳ Inapakua playlist, subiri...</div>
+                        <div id="playlist-error-msg" class="hint-text" style="display:none; color:#f87171;"></div>
+
+                        <h3 style="border-top:1px solid rgba(255,255,255,0.06); padding-top:16px; margin-top:6px;">💾 Playlists Zilizohifadhiwa</h3>
+                        <div class="ads-list" id="saved-playlists-list">
+                            <div class="empty-state">Bado hakuna playlist iliyohifadhiwa...</div>
+                        </div>
+
+                        <h3 style="border-top:1px solid rgba(255,255,255,0.06); padding-top:16px;">📋 Channel Zilizopatikana</h3>
+                        <input type="text" id="channel-search-field" placeholder="🔍 Tafuta channel kwa jina..." style="display:none;">
+
+                        <div class="flex-btns" id="test-all-controls" style="display:none; margin-bottom:15px;">
+                            <button class="btn-secondary" onclick="testAllChannels()" style="flex:1;">🔍 Pima Zote (Zinazoonekana)</button>
+                            <button class="btn-secondary" onclick="filterWorkingOnly()" style="flex:1;">✅ Onyesha Zinazofanya Kazi Tu</button>
+                        </div>
+                        <div id="testing-progress-msg" class="hint-text" style="display:none;"></div>
+
+                        <div class="ads-list" id="playlist-channels-list">
+                            <div class="empty-state">Pakua playlist hapo juu kwanza ili kuona channel zake hapa...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ============ TAB: LAYOUT / PiP ============ -->
+                <div class="tab-panel" id="tab-layout">
+                    <div class="card">
+                        <h2>🖥️ Mpangilio wa Player (Picture-in-Picture)</h2>
+                        <p class="hint-text" style="margin-top:-5px;">Gawa skrini kati ya video kuu na tangazo la pili (picha au video fupi).</p>
+
+                        <div class="layout-preview" id="layout-preview">
+                            <div class="main-zone" id="preview-main-zone">VIDEO KUU</div>
+                            <div class="pip-zone" id="preview-pip-zone">
+                                <span id="preview-pip-label">TANGAZO</span>
+                                <img id="preview-pip-img" src="" alt="" style="display:none; width:100%; height:100%; object-fit:cover; border-radius:4px;">
+                            </div>
+                        </div>
+
+                        <label>Wezesha Mgawanyo wa Skrini (Split Screen):</label>
+                        <select id="pip-enabled-selector">
+                            <option value="OFF">Zima - Video Kuu Pekee (Skrini Nzima)</option>
+                            <option value="ON">Washa - Gawa Skrini na Tangazo</option>
+                        </select>
+
+                        <label>Asilimia ya Video Kuu (Tangazo litapata kilichobaki):</label>
+                        <select id="pip-ratio-selector">
+                            <option value="75">75% Video Kuu / 25% Tangazo</option>
+                            <option value="70">70% Video Kuu / 30% Tangazo</option>
+                            <option value="60">60% Video Kuu / 40% Tangazo</option>
+                            <option value="50">50% Video Kuu / 50% Tangazo</option>
+                        </select>
+
+                        <label>Tangazo la Pili - Aina ya Maudhui:</label>
+                        <select id="pip-media-type-selector">
+                            <option value="image">Picha (Image URL)</option>
+                            <option value="video">Video (MP4/HLS URL)</option>
+                        </select>
+
+                        <label>Link ya Tangazo la Pili (Picha au Video):</label>
+                        <input type="text" id="pip-media-url-field" placeholder="https://domain.com/tangazo.mp4 au .jpg">
+
+                        <label>Nafasi ya Tangazo la Pili Skrini:</label>
+                        <select id="pip-position-selector">
+                            <option value="right">Kulia kwa Video Kuu (Side by Side)</option>
+                            <option value="bottom">Chini ya Video Kuu</option>
+                            <option value="corner-br">Kona ya Chini Kulia (Mdogo, Juu ya Video)</option>
+                            <option value="corner-tr">Kona ya Juu Kulia (Mdogo, Juu ya Video)</option>
+                        </select>
+
+                        <button onclick="publishLayoutChanges()" style="width:100%; padding:14px; font-size:14px;">🚀 RUSHA MPANGILIO MPYA HEWANI</button>
+                    </div>
+                </div>
+
+                <!-- ============ TAB: BREAKING NEWS ============ -->
+                <div class="tab-panel" id="tab-breaking">
+                    <div class="card">
+                        <h2>🚨 Breaking News (Banner ya Dharura)</h2>
+                        <p class="hint-text" style="margin-top:-5px;">Banner hii itaonekana JUU ya video kwa watazamaji wote, hadi uizime.</p>
+
+                        <label>Andika Habari ya Dharura:</label>
+                        <textarea id="breaking-text-field" placeholder="Mfano: TAARIFA MUHIMU - Mtandao wa TRA utafungwa kwa matengenezo saa 10 jioni..."></textarea>
+
+                        <div class="flex-btns">
+                            <button onclick="publishBreakingNews(true)" style="flex:1;">🚨 WASHA SASA HIVI</button>
+                            <button class="btn-danger" onclick="publishBreakingNews(false)" style="flex:1;">Zima Banner</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ============ TAB: TICKER ============ -->
+                <div class="tab-panel" id="tab-ticker">
+                    <div class="card">
+                        <h2>📜 Ticker (Maandishi ya Kupita Chini)</h2>
+                        <p class="hint-text" style="margin-top:-5px;">Dhibiti maandishi yanayopita chini ya video - ukubwa, mwendo, font, rangi, na uwazi.</p>
+
+                        <div class="ticker-preview-box" id="ticker-preview-box">
+                            <span class="ticker-preview-text" id="ticker-preview-text">Mfano wa maandishi yatakavyoonekana...</span>
+                        </div>
+
+                        <label>Maandishi ya Ticker:</label>
+                        <input type="text" id="ticker-text-field" placeholder="Andika habari au ujumbe...">
+
+                        <label>Onyesha Ticker:</label>
+                        <select id="ticker-status-selector">
+                            <option value="OFF">Ficha Ticker Bar Yote</option>
+                            <option value="ON">Washa Ticker Bar Sasa Hivi</option>
+                        </select>
+
+                        <label>Ukubwa wa Maandishi (Font Size): <span id="ticker-size-display">11.5px</span></label>
+                        <input type="range" id="ticker-font-size" min="8" max="24" step="0.5" value="11.5">
+
+                        <label>Mwendo wa Maandishi (Speed): <span id="ticker-speed-display">22s (Kawaida)</span></label>
+                        <input type="range" id="ticker-speed" min="6" max="45" step="1" value="22">
+                        <p class="hint-text" style="margin-top:-10px;">Namba ndogo = mwendo wa kasi zaidi. Namba kubwa = mwendo wa polepole zaidi.</p>
+
+                        <label>Aina ya Font (Font Family):</label>
+                        <select id="ticker-font-family">
+                            <option value="'Segoe UI', Roboto, Helvetica, Arial, sans-serif">Segoe UI (Default)</option>
+                            <option value="'Arial', sans-serif">Arial</option>
+                            <option value="'Georgia', serif">Georgia (Serif)</option>
+                            <option value="'Courier New', monospace">Courier New (Monospace)</option>
+                            <option value="'Verdana', sans-serif">Verdana</option>
+                            <option value="'Trebuchet MS', sans-serif">Trebuchet MS</option>
+                        </select>
+
+                        <label>Rangi ya Maandishi:</label>
+                        <input type="color" id="ticker-text-color" value="#e2e8f0" class="color-input">
+
+                        <label>Rangi ya Background (Mandhari ya Ticker):</label>
+                        <input type="color" id="ticker-bg-color" value="#0f172a" class="color-input">
+
+                        <label>Uwazi wa Background (Opacity): <span id="ticker-opacity-display">92%</span></label>
+                        <input type="range" id="ticker-bg-opacity" min="0" max="100" step="5" value="92">
+
+                        <label>Unene wa Ticker Bar: <span id="ticker-height-display">6px</span></label>
+                        <input type="range" id="ticker-bar-height" min="3" max="20" step="1" value="6">
+
+                        <button onclick="publishTickerChanges()" style="width:100%; padding:14px; font-size:14px; margin-top:10px;">🚀 RUSHA TICKER MPYA HEWANI</button>
+                    </div>
+                </div>
+
+                <!-- ============ TAB: ADS LIBRARY ============ -->
+                <div class="tab-panel" id="tab-ads">
+                    <div class="card">
+                        <h2>🎬 Maktaba ya Matangazo (L-Style)</h2>
+                        <p class="hint-text" style="margin-top:-5px;">Tangazo hili ni picha au video fupi (bila sauti) inayoonekana kama kibanda kidogo juu ya video kuu - kama TV za kimataifa.</p>
+
+                        <label>Nafasi ya Tangazo Kwenye Skrini (kwa hewani ijayo):</label>
+                        <select id="lstyle-position-selector">
+                            <option value="bottom-left">Chini Kushoto</option>
+                            <option value="bottom-right">Chini Kulia</option>
+                            <option value="top-left">Juu Kushoto</option>
+                            <option value="top-right">Juu Kulia</option>
+                            <option value="center">Katikati ya Skrini</option>
+                        </select>
+
+                        <div class="ads-list" id="ads-list">
+                            <div class="empty-state">Bado hakuna tangazo lililohifadhiwa...</div>
+                        </div>
+
+                        <label>Jina la Tangazo (kwa kumbukumbu yako):</label>
+                        <input type="text" id="new-ad-name" placeholder="Mfano: Tangazo la Router za Wi-Fi">
+
+                        <label>Aina ya Maudhui:</label>
+                        <select id="new-ad-type">
+                            <option value="image">Picha (Image URL)</option>
+                            <option value="video">Video (MP4 URL - itachezwa bila sauti)</option>
+                        </select>
+
+                        <label>Link ya Picha au Video:</label>
+                        <input type="text" id="new-ad-url" placeholder="https://domain.com/tangazo.jpg au .mp4">
+
+                        <div class="flex-btns">
+                            <button onclick="saveNewAd()" style="flex:1;">➕ Hifadhi Tangazo Jipya</button>
+                            <button class="btn-danger" onclick="turnOffLstyle()" style="flex:1;">Zima Tangazo Hewani</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ============ TAB: EPG ============ -->
+                <div class="tab-panel" id="tab-epg">
+                    <div class="card">
+                        <h2>📅 Ratiba ya Vipindi (EPG)</h2>
+                        <p class="hint-text" style="margin-top:-5px;">Hii ndiyo ratiba inayoonekana kwa watazamaji kwenye ukurasa wa TV.</p>
+
+                        <div class="epg-list" id="epg-list">
+                            <div class="empty-state">Inapakia ratiba...</div>
+                        </div>
+
+                        <button class="btn-danger" onclick="deleteAllEpg()" style="width:100%; margin-bottom:20px;">🗑️ FUTA RATIBA YOTE SASA HIVI</button>
+
+                        <h3 style="border-top:1px solid rgba(255,255,255,0.06); padding-top:18px;">➕ Ongeza Kipindi Kimoja</h3>
+                        <label>Saa (mfano: 08:00 AM):</label>
+                        <input type="text" id="new-epg-time" placeholder="08:00 AM">
+
+                        <label>Jina la Kipindi:</label>
+                        <input type="text" id="new-epg-name" placeholder="Mfano: Tech Insights na Bryan Alex">
+
+                        <button onclick="addEpgItem()" style="width:100%;">➕ Ongeza Kwenye Ratiba</button>
+
+                        <h3 style="border-top:1px solid rgba(255,255,255,0.06); padding-top:18px; margin-top:20px;">📋 Ongeza Ratiba Nzima kwa Mara Moja</h3>
+                        <p class="hint-text" style="margin-top:-5px;">Andika kipindi kimoja kwa kila mstari, ukitumia mpangilio: <b>SAA - JINA LA KIPINDI</b></p>
+                        <textarea id="bulk-epg-input" rows="6" placeholder="08:00 AM - Tech Insights na Bryan Alex
+02:00 PM - Cybersecurity Foundations
+06:30 PM - BAM Tech Corporate Showcase
+09:00 PM - Digital Innovations Africa"></textarea>
+
+                        <label>Hii ratiba iwe ya:</label>
+                        <select id="bulk-epg-mode">
+                            <option value="replace">Badilisha Ratiba Yote (futa ya zamani kwanza)</option>
+                            <option value="append">Ongeza Juu ya Ratiba Iliyopo (bila kufuta)</option>
+                            <option value="week">Rudia Ratiba Hii kwa Siku 7 (Wiki Nzima)</option>
+                        </select>
+
+                        <button onclick="bulkAddEpg()" style="width:100%;">🚀 RUSHA RATIBA HII HEWANI</button>
+                    </div>
+                </div>
+
+                <!-- ============ TAB: SCHEDULER ============ -->
+                <div class="tab-panel" id="tab-scheduler">
+                    <div class="card">
+                        <h2>⏰ Kupanga Mabadiliko Mapema</h2>
+                        <p class="hint-text" style="margin-top:-5px;">Panga jina la kipindi na alama ya LIVE ziwashe wenyewe kwa muda uliopanga, hata kama hauko karibu na simu.</p>
+
+                        <div class="scheduled-list" id="scheduled-list">
+                            <div class="empty-state">Bado hakuna mpango uliopangwa...</div>
+                        </div>
+
+                        <label>Tarehe na Saa ya Kuanza:</label>
+                        <input type="datetime-local" id="new-sched-time">
+
+                        <label>Jina la Kipindi Litakaloonekana:</label>
+                        <input type="text" id="new-sched-program" placeholder="Mfano: Mubashara wa Jioni">
+
+                        <label>Washa Alama ya LIVE/MUBASHARA wakati huo?</label>
+                        <select id="new-sched-live">
+                            <option value="OFF">Hapana</option>
+                            <option value="LIVE">Ndiyo - "LIVE"</option>
+                            <option value="MUBASHARA">Ndiyo - "MUBASHARA"</option>
+                        </select>
+
+                        <button onclick="addScheduledItem()" style="width:100%;">⏰ Panga Mabadiliko Haya</button>
+                        <p class="hint-text">Kumbuka: huu ukurasa (admin.html) au index.html lazima viwe wazi mahali fulani (simu/kompyuta) ili ratiba hii itekelezwe kwa wakati, kwa sababu hauna seva ya nyuma (backend) inayoendesha peke yake.</p>
+                    </div>
+                </div>
+
+                <!-- ============ TAB: CHAT ============ -->
+                <div class="tab-panel" id="tab-chat">
+                    <div class="card">
+                        <h2>💬 Live Chat Replies Interactive</h2>
+                        <p class="hint-text" style="margin-top:-5px;">Maoni yote ya watazamaji kutoka index.html yanaonekana hapa moja kwa moja, halisi.</p>
+
+                        <div class="chat-box-admin" id="admin-chat-viewer">
+                            <div class="empty-state">Bado hakuna maoni...</div>
+                        </div>
+
+                        <div style="margin-top:15px; border-top:1px solid rgba(255,255,255,0.05); padding-top:15px;">
+                            <label id="reply-target-label">Jibu Maoni kama Mmiliki (BAM TECH Admin):</label>
+                            <input type="text" id="admin-reply-input" placeholder="Chagua [JIBU] kwenye ujumbe kwanza...">
+                            <div class="flex-btns">
+                                <button onclick="sendAdminReplyDirect()" style="flex:1;">Tuma Jibu</button>
+                                <button class="btn-danger" onclick="clearChatLog()">Futa Kumbukumbu</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ============ TAB: STATS ============ -->
+                <div class="tab-panel" id="tab-stats">
+                    <div class="card">
+                        <h2>📊 Takwimu za Channel</h2>
+
+                        <div class="stats-grid">
+                            <div class="stat-box">
+                                <div class="stat-value" id="stat-current-viewers">0</div>
+                                <div class="stat-label">Watazamaji Sasa</div>
+                            </div>
+                            <div class="stat-box">
+                                <div class="stat-value" id="stat-peak-viewers">0</div>
+                                <div class="stat-label">Kilele cha Watazamaji</div>
+                            </div>
+                            <div class="stat-box">
+                                <div class="stat-value" id="stat-total-messages">0</div>
+                                <div class="stat-label">Jumla ya Maoni</div>
+                            </div>
+                        </div>
+
+                        <h3 style="margin-top:20px;">Mwenendo wa Watazamaji (Dakika za Hivi Karibuni)</h3>
+                        <canvas id="viewer-chart" style="width:100%; max-height:200px; background:#020617; border-radius:10px;"></canvas>
+                    </div>
+                </div>
+
+                <!-- ============ TAB: LOGS ============ -->
+                <div class="tab-panel" id="tab-logs">
+                    <div class="card">
+                        <h2>🛡️ Kumbukumbu za Kuingia Admin</h2>
+                        <p class="hint-text" style="margin-top:-5px;">Kila mara mtu anapoingia kwa PIN sahihi kwenye dashboard hii, inarekodiwa hapa.</p>
+                        <div class="log-list" id="admin-logs-list">
+                            <div class="empty-state">Inapakia kumbukumbu...</div>
+                        </div>
+                        <button class="btn-danger btn-small" onclick="clearAdminLogs()" style="margin-top:15px;">Futa Kumbukumbu Zote</button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="save-toast">Mabadiliko Yamerushwa Kwenye TV kwa Mafanikio! ✓</div>
+
+    <script>
+        /* ============== FIREBASE INIT ============== */
+        const firebaseConfig = {
+            apiKey: "AIzaSyAFZkUVmFModH_qCnLRZK_tq7B33ohHDR8",
+            authDomain: "bam-tech-web-app.firebaseapp.com",
+            databaseURL: "https://bam-tech-web-app-default-rtdb.firebaseio.com",
+            projectId: "bam-tech-web-app",
+            storageBucket: "bam-tech-web-app.firebasestorage.app",
+            messagingSenderId: "694615773725",
+            appId: "1:694615773725:web:65ea3521aa0684bf30acf4"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        function escapeHTML(str) {
+            const div = document.createElement('div');
+            div.innerText = str;
+            return div.innerHTML;
+        }
+
+        /* ============== PIN KALI - SECURITY LOCK ============== */
+        // BADILISHA HII PIN kuwa namba/maandishi yako binafsi yenye urefu zaidi
+        const MASTER_PIN = "BamTech#2026Admin!";
+        const MAX_ATTEMPTS = 5;
+        const LOCKOUT_MINUTES = 10;
+
+        function getLockState() {
+            return JSON.parse(localStorage.getItem('bam_admin_lock') || '{"attempts":0,"lockedUntil":0}');
+        }
+        function setLockState(state) {
+            localStorage.setItem('bam_admin_lock', JSON.stringify(state));
+        }
+
+        function checkLockoutOnLoad() {
+            const state = getLockState();
+            if (state.lockedUntil && Date.now() < state.lockedUntil) {
+                disableLoginTemporarily(state.lockedUntil);
+            }
+        }
+
+        function disableLoginTemporarily(until) {
+            const unlockBtn = document.getElementById('unlock-btn');
+            const timerEl = document.getElementById('lock-timer');
+            unlockBtn.disabled = true;
+            timerEl.style.display = 'block';
+
+            const interval = setInterval(() => {
+                const remaining = until - Date.now();
+                if (remaining <= 0) {
+                    clearInterval(interval);
+                    unlockBtn.disabled = false;
+                    timerEl.style.display = 'none';
+                    setLockState({ attempts: 0, lockedUntil: 0 });
+                } else {
+                    const mins = Math.floor(remaining / 60000);
+                    const secs = Math.floor((remaining % 60000) / 1000);
+                    timerEl.innerText = `🔒 Umezuiwa. Subiri ${mins}m ${secs}s kabla ya kujaribu tena.`;
+                }
+            }, 1000);
+        }
+
+        function unlockDashboard() {
+            const state = getLockState();
+            if (state.lockedUntil && Date.now() < state.lockedUntil) {
+                disableLoginTemporarily(state.lockedUntil);
+                return;
+            }
+
+            const pin = document.getElementById('master-pin').value;
+            if (pin === MASTER_PIN) {
+                setLockState({ attempts: 0, lockedUntil: 0 });
+                document.getElementById('gatekeeper').style.display = 'none';
+                recordAdminLogin();
+                showChannelSelector();
+            } else {
+                const attempts = (state.attempts || 0) + 1;
+                document.getElementById('lock-error').style.display = 'block';
+                document.getElementById('master-pin').value = '';
+
+                if (attempts >= MAX_ATTEMPTS) {
+                    const lockedUntil = Date.now() + LOCKOUT_MINUTES * 60 * 1000;
+                    setLockState({ attempts: 0, lockedUntil });
+                    disableLoginTemporarily(lockedUntil);
+                } else {
+                    setLockState({ attempts, lockedUntil: 0 });
+                }
+            }
+        }
+
+        document.getElementById('master-pin').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') unlockDashboard();
+        });
+
+        checkLockoutOnLoad();
+
+        /* ============== CHANNEL SELECTOR ============== */
+        let activeChannelId = null;
+        let channelRef = null; // db.ref('channels/' + activeChannelId) - inawekwa wakati channel inafunguliwa
+
+        function showChannelSelector() {
+            document.getElementById('channel-selector-view').style.display = 'block';
+            document.getElementById('main-panel').style.display = 'none';
+            loadChannelsForAdmin();
+        }
+
+        function loadChannelsForAdmin() {
+            db.ref('channels_meta').on('value', (snapshot) => {
+                const data = snapshot.val();
+                const list = document.getElementById('cs-channel-list');
+                list.innerHTML = '';
+
+                if (!data) {
+                    list.innerHTML = '<div class="empty-state">Bado hakuna channel. Ongeza moja hapa chini.</div>';
+                    return;
+                }
+
+                Object.entries(data).forEach(([id, ch]) => {
+                    const card = document.createElement('div');
+                    card.className = 'cs-channel-card';
+                    card.innerHTML = `
+                        <div class="cs-channel-thumb">
+                            ${ch.logo ? `<img src="${escapeHTML(ch.logo)}" alt="" onerror="this.style.display='none';">` : '📺'}
+                        </div>
+                        <div class="cs-channel-info">
+                            <div class="cs-channel-name">${escapeHTML(ch.name)}</div>
+                            <div class="cs-channel-meta">${escapeHTML(ch.category || 'Hakuna category')}</div>
+                        </div>
+                        <div class="cs-channel-actions">
+                            <button class="btn-danger btn-small" data-action="delete">Futa</button>
+                        </div>`;
+                    card.addEventListener('click', (e) => {
+                        if (e.target.closest('[data-action="delete"]')) return;
+                        enterChannelControlRoom(id, ch.name);
+                    });
+                    card.querySelector('[data-action="delete"]').addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        deleteChannel(id, ch.name);
+                    });
+                    list.appendChild(card);
+                });
+            });
+        }
+
+        function createNewChannel() {
+            const name = document.getElementById('new-channel-name').value.trim();
+            const description = document.getElementById('new-channel-desc').value.trim();
+            const category = document.getElementById('new-channel-category').value.trim();
+            const logo = document.getElementById('new-channel-logo').value.trim();
+
+            if (name === "") {
+                alert('Weka jina la channel kwanza.');
+                return;
+            }
+
+            const newChannelRef = db.ref('channels_meta').push();
+            newChannelRef.set({
+                name, description, category: category || 'Burudani', logo, createdAt: Date.now()
+            }).then(() => {
+                document.getElementById('new-channel-name').value = '';
+                document.getElementById('new-channel-desc').value = '';
+                document.getElementById('new-channel-category').value = '';
+                document.getElementById('new-channel-logo').value = '';
+                showToast('Channel Mpya Imeundwa ✓');
+                db.ref('admin_logs').push({ time: Date.now(), action: `Aliunda channel mpya: ${name}` });
+            }).catch(err => alert('Hitilafu: ' + err.message));
+        }
+
+        function deleteChannel(id, name) {
+            if (confirm(`Una uhakika unataka kufuta channel "${name}"? Data zote (chat, ratiba, mipangilio) zitafutwa pia. Hatua hii haiwezi kurudishwa.`)) {
+                db.ref('channels_meta/' + id).remove();
+                db.ref('channels/' + id).remove().then(() => {
+                    showToast('Channel Imefutwa');
+                    db.ref('admin_logs').push({ time: Date.now(), action: `Alifuta channel: ${name}` });
+                });
+            }
+        }
+
+        function enterChannelControlRoom(channelId, channelName) {
+            activeChannelId = channelId;
+            channelRef = db.ref('channels/' + channelId);
+
+            document.getElementById('channel-selector-view').style.display = 'none';
+            document.getElementById('main-panel').style.display = 'block';
+            document.getElementById('cr-channel-name').innerHTML = `${escapeHTML(channelName)} <span>·</span> Control Room`;
+
+            switchTab('broadcast');
+
+            loadCurrentConfigValues();
+            loadLayoutValues();
+            loadTickerValues();
+            startSavedPlaylistsListener();
+            startAdminChatListener();
+            startViewerCountListener();
+            startAdsLibraryListener();
+            startEpgListener();
+            startSchedulerListener();
+            startSchedulerEngine();
+            startStatsListener();
+        }
+
+        function exitChannelControlRoom() {
+            // Zima listeners zote za channel iliyopita kabla ya kuondoka (kuepuka mgongano wa data)
+            if (channelRef) {
+                channelRef.child('tv_config').off();
+                channelRef.child('breaking_news').off();
+                channelRef.child('chat_messages').off();
+                channelRef.child('epg').off();
+                channelRef.child('layout_config').off();
+                channelRef.child('presence/viewers').off();
+                channelRef.child('ads_library').off();
+                channelRef.child('scheduled_changes').off();
+            }
+            activeChannelId = null;
+            channelRef = null;
+            showChannelSelector();
+        }
+
+        /* ============== SIDEBAR / TABS NAVIGATION ============== */
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.getElementById('tab-' + tabName).classList.add('active');
+            document.querySelector(`.nav-item[data-tab="${tabName}"]`).classList.add('active');
+
+            if (window.innerWidth <= 760) {
+                document.getElementById('sidebar-nav').classList.remove('open');
+                document.getElementById('sidebar-overlay').classList.remove('open');
+            }
+        }
+
+        function toggleSidebar() {
+            document.getElementById('sidebar-nav').classList.toggle('open');
+            document.getElementById('sidebar-overlay').classList.toggle('open');
+        }
+
+        /* ============== ADMIN LOGIN LOGS ============== */
+        function recordAdminLogin() {
+            db.ref('admin_logs').push({
+                time: Date.now(),
+                action: 'Kuingia kwenye Control Room kwa mafanikio'
+            });
+        }
+
+        function startAdminLogsListener() {
+            db.ref('admin_logs').limitToLast(50).on('value', (snapshot) => {
+                const data = snapshot.val();
+                const list = document.getElementById('admin-logs-list');
+                list.innerHTML = '';
+                if (!data) {
+                    list.innerHTML = '<div class="empty-state">Bado hakuna kumbukumbu...</div>';
+                    return;
+                }
+                const items = Object.values(data).sort((a, b) => b.time - a.time);
+                items.forEach((item) => {
+                    const row = document.createElement('div');
+                    row.className = 'log-row';
+                    row.innerHTML = `<span class="log-time">${new Date(item.time).toLocaleString('sw-TZ')}</span> — ${escapeHTML(item.action)}`;
+                    list.appendChild(row);
+                });
+            });
+        }
+
+        function clearAdminLogs() {
+            if (confirm('Futa kumbukumbu zote za kuingia admin?')) {
+                db.ref('admin_logs').remove();
+            }
+        }
+
+        /* ============== BROADCAST TAB ============== */
+        function loadCurrentConfigValues() {
+            channelRef.child('tv_config').once('value').then((snap) => {
+                const config = snap.val() || {};
+                document.getElementById('stream-url-field').value = config.streamUrl || '';
+                document.getElementById('program-title-field').value = config.programTitle || '';
+                document.getElementById('live-badge-selector').value = config.showLive ? (config.liveText || 'LIVE') : 'OFF';
+            });
+        }
+
+        function publishLiveChanges() {
+            const liveSelector = document.getElementById('live-badge-selector').value;
+
+            const config = {
+                streamUrl: document.getElementById('stream-url-field').value.trim(),
+                programTitle: document.getElementById('program-title-field').value.trim(),
+                showLive: liveSelector !== 'OFF',
+                liveText: liveSelector !== 'OFF' ? liveSelector : 'LIVE'
+            };
+
+            channelRef.child('tv_config').update(config).then(() => {
+                showToast();
+                db.ref('admin_logs').push({ time: Date.now(), action: 'Alibadilisha mipangilio ya Broadcast' });
+            }).catch((err) => alert('Hitilafu: ' + err.message));
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('save-toast');
+            if (msg) toast.innerText = msg;
+            toast.style.display = 'block';
+            setTimeout(() => { toast.style.display = 'none'; }, 3000);
+        }
+
+        /* ============== PLAYLIST BROWSER TAB ============== */
+        let currentPlaylistChannels = [];
+
+        function parseM3U(text) {
+            const lines = text.split('\n').map(l => l.trim());
+            const channels = [];
+            let pendingName = '';
+            let pendingLogo = '';
+            let pendingGroup = '';
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                if (line.startsWith('#EXTINF')) {
+                    // Pata jina (baada ya comma ya mwisho)
+                    const commaIndex = line.lastIndexOf(',');
+                    pendingName = commaIndex !== -1 ? line.substring(commaIndex + 1).trim() : 'Channel Isiyo na Jina';
+
+                    const logoMatch = line.match(/tvg-logo="([^"]*)"/);
+                    pendingLogo = logoMatch ? logoMatch[1] : '';
+
+                    const groupMatch = line.match(/group-title="([^"]*)"/);
+                    pendingGroup = groupMatch ? groupMatch[1] : '';
+                } else if (line !== '' && !line.startsWith('#')) {
+                    // Hii ni URL ya stream
+                    channels.push({
+                        name: pendingName || 'Channel Isiyo na Jina',
+                        logo: pendingLogo,
+                        group: pendingGroup,
+                        url: line
+                    });
+                    pendingName = ''; pendingLogo = ''; pendingGroup = '';
+                }
+            }
+            return channels;
+        }
+
+        function loadPlaylist() {
+            const url = document.getElementById('playlist-url-field').value.trim();
+            if (url === "") {
+                alert('Weka link ya playlist kwanza.');
+                return;
+            }
+
+            const loadingMsg = document.getElementById('playlist-loading-msg');
+            const errorMsg = document.getElementById('playlist-error-msg');
+            const channelsList = document.getElementById('playlist-channels-list');
+            const searchField = document.getElementById('channel-search-field');
+
+            loadingMsg.style.display = 'block';
+            errorMsg.style.display = 'none';
+            channelsList.innerHTML = '';
+            document.getElementById('test-all-controls').style.display = 'none';
+            document.getElementById('testing-progress-msg').style.display = 'none';
+
+            fetch(url)
+                .then(response => {
+                    if (!response.ok) throw new Error('Server imekataa ombi (status ' + response.status + ')');
+                    return response.text();
+                })
+                .then(text => {
+                    loadingMsg.style.display = 'none';
+                    const channels = parseM3U(text);
+                    if (channels.length === 0) {
+                        errorMsg.innerText = 'Hakuna channel zilizopatikana. Hakikisha link ni faili sahihi la M3U/M3U8.';
+                        errorMsg.style.display = 'block';
+                        return;
+                    }
+                    currentPlaylistChannels = channels;
+                    searchField.style.display = 'block';
+                    searchField.value = '';
+                    document.getElementById('test-all-controls').style.display = 'flex';
+                    renderChannelsList(channels);
+                    showToast(`Channel ${channels.length} Zimepatikana ✓`);
+                })
+                .catch(err => {
+                    loadingMsg.style.display = 'none';
+                    errorMsg.innerText = 'Imeshindwa kupakua playlist: ' + err.message + '. Huenda seva ya playlist hii inazuia ufikiaji wa moja kwa moja (CORS), au link si sahihi.';
+                    errorMsg.style.display = 'block';
+                    channelsList.innerHTML = '<div class="empty-state">Imeshindwa kupakua. Jaribu link nyingine.</div>';
+                });
+        }
+
+        function renderChannelsList(channels) {
+            const channelsList = document.getElementById('playlist-channels-list');
+            channelsList.innerHTML = '';
+
+            if (channels.length === 0) {
+                channelsList.innerHTML = '<div class="empty-state">Hakuna channel zilizopatikana na hilo neno la utafutaji.</div>';
+                return;
+            }
+
+            // Onyesha max 100 kwa wakati mmoja ili kuepuka kulemea simu
+            const displayChannels = channels.slice(0, 100);
+
+            displayChannels.forEach((ch) => {
+                const div = document.createElement('div');
+                div.className = 'ad-item';
+                div.dataset.channelUrl = ch.url;
+                const groupLabel = ch.group ? ` · ${escapeHTML(ch.group)}` : '';
+
+                let statusBadgeHtml = '';
+                if (ch.testStatus === 'working') statusBadgeHtml = '<span class="status-badge status-working">✓ INAFANYA KAZI</span>';
+                else if (ch.testStatus === 'failed') statusBadgeHtml = '<span class="status-badge status-failed">✗ HAIFANYI KAZI</span>';
+                else if (ch.testStatus === 'testing') statusBadgeHtml = '<span class="status-badge status-testing">⏳ INAPIMWA</span>';
+
+                if (ch.testStatus === 'failed') div.classList.add('status-row-failed');
+
+                div.innerHTML = `
+                    <div class="ad-item-info">
+                        <div class="ad-item-name">${escapeHTML(ch.name)}${statusBadgeHtml}</div>
+                        <div class="ad-item-meta">${escapeHTML(ch.url)}${groupLabel}</div>
+                    </div>
+                    <div class="ad-item-actions">
+                        <button class="btn-secondary btn-small" data-action="use">Tumia</button>
+                    </div>`;
+                div.querySelector('[data-action="use"]').addEventListener('click', () => useChannelFromPlaylist(ch));
+                channelsList.appendChild(div);
+            });
+
+            if (channels.length > 100) {
+                const moreNote = document.createElement('div');
+                moreNote.className = 'hint-text';
+                moreNote.style.textAlign = 'center';
+                moreNote.innerText = `Zinaonyeshwa 100 za kwanza kati ya ${channels.length}. Tumia utafutaji kupunguza orodha.`;
+                channelsList.appendChild(moreNote);
+            }
+        }
+
+        document.getElementById('channel-search-field').addEventListener('input', function() {
+            const query = this.value.trim().toLowerCase();
+            if (query === '') {
+                renderChannelsList(currentPlaylistChannels);
+                return;
+            }
+            const filtered = currentPlaylistChannels.filter(ch => ch.name.toLowerCase().includes(query));
+            renderChannelsList(filtered);
+        });
+
+        async function testAllChannels() {
+            const progressMsg = document.getElementById('testing-progress-msg');
+            // Pima zile 100 zinazoonyeshwa kwa sasa (zinazoonekana kwenye skrini)
+            const channelsToTest = currentPlaylistChannels.slice(0, 100);
+
+            progressMsg.style.display = 'block';
+
+            // Weka zote kuwa "testing" kwanza
+            channelsToTest.forEach(ch => { ch.testStatus = 'testing'; });
+            renderChannelsList(currentPlaylistChannels);
+
+            let testedCount = 0;
+            const CONCURRENT_LIMIT = 5; // pima 5 kwa wakati mmoja ili kuepuka kulemea
+
+            async function testOne(ch) {
+                try {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 6000);
+                    const response = await fetch(ch.url, { method: 'GET', signal: controller.signal });
+                    clearTimeout(timeoutId);
+                    ch.testStatus = response.ok ? 'working' : 'failed';
+                } catch (err) {
+                    ch.testStatus = 'failed';
+                }
+                testedCount++;
+                progressMsg.innerText = `⏳ Inapima... ${testedCount} / ${channelsToTest.length}`;
+                renderChannelsList(currentPlaylistChannels);
+            }
+
+            // Pima kwa makundi ya CONCURRENT_LIMIT ili kuepuka maombi mengi kwa wakati mmoja
+            for (let i = 0; i < channelsToTest.length; i += CONCURRENT_LIMIT) {
+                const batch = channelsToTest.slice(i, i + CONCURRENT_LIMIT);
+                await Promise.all(batch.map(testOne));
+            }
+
+            const workingCount = channelsToTest.filter(ch => ch.testStatus === 'working').length;
+            progressMsg.innerText = `✅ Upimaji Umekamilika: ${workingCount} kati ya ${channelsToTest.length} zinaonekana kufanya kazi.`;
+        }
+
+        function filterWorkingOnly() {
+            const workingChannels = currentPlaylistChannels.filter(ch => ch.testStatus === 'working');
+            if (workingChannels.length === 0) {
+                alert('Bado hujapima channel zozote, au hakuna iliyofanya kazi. Bofya "Pima Zote" kwanza.');
+                return;
+            }
+            renderChannelsList(workingChannels);
+        }
+
+        function useChannelFromPlaylist(channel) {
+            document.getElementById('stream-url-field').value = channel.url;
+            channelRef.child('tv_config/streamUrl').set(channel.url).then(() => {
+                showToast(`Channel "${channel.name}" Imewashwa Hewani! ✓`);
+                db.ref('admin_logs').push({ time: Date.now(), action: `Aliwasha channel kutoka playlist: ${channel.name}` });
+            }).catch(err => alert('Hitilafu: ' + err.message));
+        }
+
+        function savePlaylistToLibrary() {
+            const url = document.getElementById('playlist-url-field').value.trim();
+            if (url === "") {
+                alert('Weka link ya playlist kabla ya kuihifadhi.');
+                return;
+            }
+            const name = prompt('Jina la kumbukumbu kwa hii playlist (mfano: "IPTV-org Tanzania"):');
+            if (!name || name.trim() === "") return;
+
+            db.ref('saved_playlists').push({ name: name.trim(), url, createdAt: Date.now() }).then(() => {
+                showToast('Playlist Imehifadhiwa ✓');
+                document.getElementById('playlist-url-field').value = '';
+            });
+        }
+
+        function startSavedPlaylistsListener() {
+            db.ref('saved_playlists').on('value', (snapshot) => {
+                const data = snapshot.val();
+                const list = document.getElementById('saved-playlists-list');
+                list.innerHTML = '';
+
+                if (!data) {
+                    list.innerHTML = '<div class="empty-state">Bado hakuna playlist iliyohifadhiwa...</div>';
+                    return;
+                }
+
+                Object.entries(data).forEach(([key, pl]) => {
+                    const div = document.createElement('div');
+                    div.className = 'ad-item';
+                    div.innerHTML = `
+                        <div class="ad-item-info">
+                            <div class="ad-item-name">${escapeHTML(pl.name)}</div>
+                            <div class="ad-item-meta">${escapeHTML(pl.url)}</div>
+                        </div>
+                        <div class="ad-item-actions">
+                            <button class="btn-secondary btn-small" data-action="load">Pakua</button>
+                            <button class="btn-danger btn-small" data-action="delete">Futa</button>
+                        </div>`;
+                    div.querySelector('[data-action="load"]').addEventListener('click', () => {
+                        document.getElementById('playlist-url-field').value = pl.url;
+                        loadPlaylist();
+                    });
+                    div.querySelector('[data-action="delete"]').addEventListener('click', () => {
+                        if (confirm('Futa hii playlist kutoka kwenye maktaba?')) {
+                            db.ref('saved_playlists/' + key).remove();
+                        }
+                    });
+                    list.appendChild(div);
+                });
+            });
+        }
+
+        /* ============== LAYOUT / PiP TAB ============== */
+        function loadLayoutValues() {
+            channelRef.child('layout_config').once('value').then((snap) => {
+                const cfg = snap.val() || {};
+                document.getElementById('pip-enabled-selector').value = cfg.enabled ? 'ON' : 'OFF';
+                document.getElementById('pip-ratio-selector').value = cfg.mainRatio || '75';
+                document.getElementById('pip-media-type-selector').value = cfg.mediaType || 'image';
+                document.getElementById('pip-media-url-field').value = cfg.mediaUrl || '';
+                document.getElementById('pip-position-selector').value = cfg.position || 'right';
+                updateLayoutPreview();
+            });
+        }
+
+        function updateLayoutPreview() {
+            const ratio = parseInt(document.getElementById('pip-ratio-selector').value);
+            const position = document.getElementById('pip-position-selector').value;
+            const enabled = document.getElementById('pip-enabled-selector').value === 'ON';
+            const mainZone = document.getElementById('preview-main-zone');
+            const pipZone = document.getElementById('preview-pip-zone');
+            const pipImg = document.getElementById('preview-pip-img');
+            const pipLabel = document.getElementById('preview-pip-label');
+            const mediaUrl = document.getElementById('pip-media-url-field').value.trim();
+            const mediaType = document.getElementById('pip-media-type-selector').value;
+
+            if (mediaUrl !== "" && mediaType === 'image') {
+                pipImg.src = mediaUrl;
+                pipImg.style.display = 'block';
+                pipLabel.style.display = 'none';
+            } else {
+                pipImg.style.display = 'none';
+                pipLabel.style.display = 'block';
+            }
+
+            if (!enabled) {
+                mainZone.style.inset = '0';
+                mainZone.style.width = ''; mainZone.style.height = '';
+                pipZone.style.display = 'none';
+                return;
+            }
+            pipZone.style.display = 'flex';
+
+            if (position === 'right') {
+                mainZone.style.inset = 'auto'; mainZone.style.left = '0'; mainZone.style.top = '0'; mainZone.style.bottom = '0';
+                mainZone.style.width = ratio + '%'; mainZone.style.height = '100%';
+                pipZone.style.left = ratio + '%'; pipZone.style.top = '0'; pipZone.style.right = '0'; pipZone.style.bottom = '0'; pipZone.style.width = ''; pipZone.style.height = '';
+            } else if (position === 'bottom') {
+                mainZone.style.inset = 'auto'; mainZone.style.left = '0'; mainZone.style.top = '0'; mainZone.style.right = '0';
+                mainZone.style.height = ratio + '%'; mainZone.style.width = '100%';
+                pipZone.style.top = ratio + '%'; pipZone.style.left = '0'; pipZone.style.right = '0'; pipZone.style.bottom = '0'; pipZone.style.width = ''; pipZone.style.height = '';
+            } else if (position === 'corner-br') {
+                mainZone.style.inset = '0'; mainZone.style.width = ''; mainZone.style.height = '';
+                pipZone.style.left = 'auto'; pipZone.style.top = 'auto'; pipZone.style.right = '4%'; pipZone.style.bottom = '4%';
+                pipZone.style.width = '28%'; pipZone.style.height = '28%';
+            } else if (position === 'corner-tr') {
+                mainZone.style.inset = '0'; mainZone.style.width = ''; mainZone.style.height = '';
+                pipZone.style.left = 'auto'; pipZone.style.bottom = 'auto'; pipZone.style.right = '4%'; pipZone.style.top = '4%';
+                pipZone.style.width = '28%'; pipZone.style.height = '28%';
+            }
+        }
+
+        ['pip-enabled-selector', 'pip-ratio-selector', 'pip-position-selector', 'pip-media-url-field', 'pip-media-type-selector'].forEach(id => {
+            document.getElementById(id).addEventListener('input', updateLayoutPreview);
+            document.getElementById(id).addEventListener('change', updateLayoutPreview);
+        });
+
+        function publishLayoutChanges() {
+            const layoutConfig = {
+                enabled: document.getElementById('pip-enabled-selector').value === 'ON',
+                mainRatio: document.getElementById('pip-ratio-selector').value,
+                mediaType: document.getElementById('pip-media-type-selector').value,
+                mediaUrl: document.getElementById('pip-media-url-field').value.trim(),
+                position: document.getElementById('pip-position-selector').value
+            };
+            channelRef.child('layout_config').set(layoutConfig).then(() => {
+                showToast('Mpangilio wa Player Umerushwa Hewani! ✓');
+                db.ref('admin_logs').push({ time: Date.now(), action: 'Alibadilisha mpangilio wa Player (PiP)' });
+            }).catch((err) => alert('Hitilafu: ' + err.message));
+        }
+
+        /* ============== BREAKING NEWS TAB ============== */
+        channelRef.child('breaking_news').once('value').then(snap => {
+            const data = snap.val();
+            if (data && data.text) document.getElementById('breaking-text-field').value = data.text;
+        });
+
+        function publishBreakingNews(activate) {
+            const text = document.getElementById('breaking-text-field').value.trim();
+            if (activate && text === "") {
+                alert('Andika habari ya dharura kabla ya kuwasha.');
+                return;
+            }
+            channelRef.child('breaking_news').set({
+                text: text,
+                active: activate,
+                time: Date.now()
+            }).then(() => {
+                showToast(activate ? 'Breaking News Imewashwa! 🚨' : 'Breaking News Imezimwa');
+                db.ref('admin_logs').push({ time: Date.now(), action: activate ? 'Aliwasha Breaking News' : 'Alizima Breaking News' });
+            });
+        }
+
+        /* ============== TICKER TAB ============== */
+        function hexToRgbAdmin(hex) {
+            hex = hex.replace('#', '');
+            if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+            const num = parseInt(hex, 16);
+            return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+        }
+
+        function loadTickerValues() {
+            channelRef.child('tv_config').once('value').then((snap) => {
+                const config = snap.val() || {};
+                document.getElementById('ticker-text-field').value = config.ticker || '';
+                document.getElementById('ticker-status-selector').value = config.showTicker ? 'ON' : 'OFF';
+                document.getElementById('ticker-font-size').value = config.tickerFontSize || 11.5;
+                document.getElementById('ticker-speed').value = config.tickerSpeed || 22;
+                document.getElementById('ticker-font-family').value = config.tickerFontFamily || "'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+                document.getElementById('ticker-text-color').value = config.tickerTextColor || '#e2e8f0';
+                document.getElementById('ticker-bg-color').value = config.tickerBgColor || '#0f172a';
+                document.getElementById('ticker-bg-opacity').value = (config.tickerBgOpacity !== undefined) ? Math.round(config.tickerBgOpacity * 100) : 92;
+                document.getElementById('ticker-bar-height').value = config.tickerBarHeight || 6;
+                updateTickerPreview();
+            });
+        }
+
+        function updateTickerPreview() {
+            const text = document.getElementById('ticker-text-field').value.trim() || 'Mfano wa maandishi yatakavyoonekana...';
+            const fontSize = document.getElementById('ticker-font-size').value;
+            const speed = document.getElementById('ticker-speed').value;
+            const fontFamily = document.getElementById('ticker-font-family').value;
+            const textColor = document.getElementById('ticker-text-color').value;
+            const bgColor = document.getElementById('ticker-bg-color').value;
+            const bgOpacity = document.getElementById('ticker-bg-opacity').value / 100;
+            const barHeight = document.getElementById('ticker-bar-height').value;
+
+            document.getElementById('ticker-size-display').innerText = fontSize + 'px';
+            document.getElementById('ticker-speed-display').innerText = speed + 's' + (speed < 15 ? ' (Kasi)' : speed > 30 ? ' (Polepole)' : ' (Kawaida)');
+            document.getElementById('ticker-opacity-display').innerText = Math.round(bgOpacity * 100) + '%';
+            document.getElementById('ticker-height-display').innerText = barHeight + 'px';
+
+            const previewBox = document.getElementById('ticker-preview-box');
+            const previewText = document.getElementById('ticker-preview-text');
+            const rgb = hexToRgbAdmin(bgColor);
+
+            previewBox.style.background = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${bgOpacity})`;
+            previewBox.style.padding = barHeight + 'px 0';
+            previewText.innerText = text;
+            previewText.style.fontSize = fontSize + 'px';
+            previewText.style.fontFamily = fontFamily;
+            previewText.style.color = textColor;
+        }
+
+        ['ticker-text-field', 'ticker-font-size', 'ticker-speed', 'ticker-font-family', 'ticker-text-color', 'ticker-bg-color', 'ticker-bg-opacity', 'ticker-bar-height'].forEach(id => {
+            const el = document.getElementById(id);
+            el.addEventListener('input', updateTickerPreview);
+            el.addEventListener('change', updateTickerPreview);
+        });
+
+        function publishTickerChanges() {
+            const config = {
+                ticker: document.getElementById('ticker-text-field').value.trim(),
+                showTicker: document.getElementById('ticker-status-selector').value === 'ON',
+                tickerFontSize: parseFloat(document.getElementById('ticker-font-size').value),
+                tickerSpeed: parseInt(document.getElementById('ticker-speed').value),
+                tickerFontFamily: document.getElementById('ticker-font-family').value,
+                tickerTextColor: document.getElementById('ticker-text-color').value,
+                tickerBgColor: document.getElementById('ticker-bg-color').value,
+                tickerBgOpacity: parseInt(document.getElementById('ticker-bg-opacity').value) / 100,
+                tickerBarHeight: parseInt(document.getElementById('ticker-bar-height').value)
+            };
+
+            channelRef.child('tv_config').update(config).then(() => {
+                showToast('Ticker Mpya Imerushwa Hewani! ✓');
+                db.ref('admin_logs').push({ time: Date.now(), action: 'Alibadilisha mipangilio ya Ticker' });
+            }).catch((err) => alert('Hitilafu: ' + err.message));
+        }
+
+        /* ============== ADS LIBRARY TAB ============== */
+        function startAdsLibraryListener() {
+            channelRef.child('ads_library').on('value', (snapshot) => {
+                const data = snapshot.val();
+                const list = document.getElementById('ads-list');
+                list.innerHTML = '';
+
+                channelRef.child('tv_config').once('value').then(liveSnap => {
+                    const liveConfig = liveSnap.val() || {};
+                    const liveUrl = liveConfig.showLStyle ? liveConfig.adMediaUrl : null;
+
+                    if (!data) {
+                        list.innerHTML = '<div class="empty-state">Bado hakuna tangazo lililohifadhiwa...</div>';
+                        return;
+                    }
+
+                    Object.entries(data).forEach(([key, ad]) => {
+                        const isLive = ad.url === liveUrl;
+                        const div = document.createElement('div');
+                        div.className = 'ad-item' + (isLive ? ' is-live' : '');
+                        const typeLabel = ad.type === 'video' ? '🎞️ Video' : '🖼️ Picha';
+                        div.innerHTML = `
+                            <div class="ad-item-info">
+                                <div class="ad-item-name">${escapeHTML(ad.name)}${isLive ? '<span class="ad-item-badge">HEWANI</span>' : ''}</div>
+                                <div class="ad-item-meta">${typeLabel} · ${escapeHTML(ad.url)}</div>
+                            </div>
+                            <div class="ad-item-actions">
+                                <button class="btn-secondary btn-small" data-action="use" data-key="${key}">Washa</button>
+                                <button class="btn-danger btn-small" data-action="delete" data-key="${key}">Futa</button>
+                            </div>`;
+                        div.querySelector('[data-action="use"]').addEventListener('click', () => useAd(key));
+                        div.querySelector('[data-action="delete"]').addEventListener('click', () => deleteAd(key));
+                        list.appendChild(div);
+                    });
+                });
+            });
+        }
+
+        function saveNewAd() {
+            const name = document.getElementById('new-ad-name').value.trim();
+            const type = document.getElementById('new-ad-type').value;
+            const url = document.getElementById('new-ad-url').value.trim();
+            if (name === "" || url === "") {
+                alert('Jaza jina na link ya picha/video.');
+                return;
+            }
+            channelRef.child('ads_library').push({ name, type, url, createdAt: Date.now() }).then(() => {
+                document.getElementById('new-ad-name').value = '';
+                document.getElementById('new-ad-url').value = '';
+                showToast('Tangazo Limehifadhiwa Kwenye Maktaba ✓');
+            });
+        }
+
+        function useAd(key) {
+            channelRef.child('ads_library/' + key).once('value').then(snap => {
+                const ad = snap.val();
+                if (!ad) return;
+                const position = document.getElementById('lstyle-position-selector').value;
+                channelRef.child('tv_config').update({
+                    adMediaUrl: ad.url,
+                    adMediaType: ad.type,
+                    adPosition: position,
+                    showLStyle: true
+                }).then(() => {
+                    showToast(`Tangazo "${ad.name}" Limewashwa Hewani! ✓`);
+                    db.ref('admin_logs').push({ time: Date.now(), action: `Aliwasha tangazo: ${ad.name}` });
+                });
+            });
+        }
+
+        function deleteAd(key) {
+            if (confirm('Futa hili tangazo kutoka kwenye maktaba?')) {
+                channelRef.child('ads_library/' + key).remove();
+            }
+        }
+
+        function turnOffLstyle() {
+            channelRef.child('tv_config/showLStyle').set(false).then(() => {
+                showToast('Tangazo la L-Style Limezimwa');
+            });
+        }
+
+        /* ============== EPG TAB ============== */
+        function startEpgListener() {
+            channelRef.child('epg').on('value', (snapshot) => {
+                const data = snapshot.val();
+                const list = document.getElementById('epg-list');
+                list.innerHTML = '';
+
+                if (!data) {
+                    list.innerHTML = '<div class="empty-state">Bado hakuna kipindi kwenye ratiba...</div>';
+                    return;
+                }
+
+                const entries = Object.entries(data).sort((a, b) => (a[1].order || 0) - (b[1].order || 0));
+                entries.forEach(([key, item]) => {
+                    const div = document.createElement('div');
+                    div.className = 'epg-item' + (item.active ? ' is-active' : '');
+                    div.innerHTML = `
+                        <div class="epg-item-info">
+                            <div class="epg-item-time">${escapeHTML(item.time)}${item.active ? ' · INAENDESHWA SASA' : ''}</div>
+                            <div class="epg-item-name">${escapeHTML(item.name)}</div>
+                        </div>
+                        <div class="epg-item-actions">
+                            <button class="btn-secondary btn-small" data-action="activate" data-key="${key}">${item.active ? 'Zima' : 'Washa'}</button>
+                            <button class="btn-danger btn-small" data-action="delete" data-key="${key}">Futa</button>
+                        </div>`;
+                    div.querySelector('[data-action="activate"]').addEventListener('click', () => toggleEpgActive(key, !item.active));
+                    div.querySelector('[data-action="delete"]').addEventListener('click', () => deleteEpgItem(key));
+                    list.appendChild(div);
+                });
+            });
+        }
+
+        function addEpgItem() {
+            const time = document.getElementById('new-epg-time').value.trim();
+            const name = document.getElementById('new-epg-name').value.trim();
+            if (time === "" || name === "") {
+                alert('Jaza saa na jina la kipindi.');
+                return;
+            }
+            channelRef.child('epg').once('value').then(snap => {
+                const data = snap.val() || {};
+                const maxOrder = Object.values(data).reduce((m, it) => Math.max(m, it.order || 0), 0);
+                channelRef.child('epg').push({ time, name, active: false, order: maxOrder + 1 }).then(() => {
+                    document.getElementById('new-epg-time').value = '';
+                    document.getElementById('new-epg-name').value = '';
+                    showToast('Kipindi Kimeongezwa Kwenye Ratiba ✓');
+                });
+            });
+        }
+
+        function toggleEpgActive(key, makeActive) {
+            if (makeActive) {
+                // Zima vipindi vingine vyote kabla ya kuwasha hiki (kimoja kinaendeshwa kwa wakati mmoja)
+                channelRef.child('epg').once('value').then(snap => {
+                    const data = snap.val() || {};
+                    const updates = {};
+                    Object.keys(data).forEach(k => { updates[k + '/active'] = (k === key); });
+                    channelRef.child('epg').update(updates);
+                });
+            } else {
+                channelRef.child('epg/' + key + '/active').set(false);
+            }
+        }
+
+        function deleteEpgItem(key) {
+            if (confirm('Futa hiki kipindi kutoka kwenye ratiba?')) {
+                channelRef.child('epg/' + key).remove();
+            }
+        }
+
+        function deleteAllEpg() {
+            if (confirm('Una uhakika unataka kufuta RATIBA YOTE? Hatua hii haiwezi kurudishwa.')) {
+                channelRef.child('epg').remove().then(() => {
+                    showToast('Ratiba Yote Imefutwa ✓');
+                    db.ref('admin_logs').push({ time: Date.now(), action: 'Alifuta ratiba (EPG) yote' });
+                });
+            }
+        }
+
+        function parseBulkEpgText(rawText) {
+            // Kila mstari: "SAA - JINA LA KIPINDI"
+            const lines = rawText.split('\n').map(l => l.trim()).filter(l => l !== "");
+            const items = [];
+            lines.forEach(line => {
+                const dashIndex = line.indexOf(' - ');
+                if (dashIndex === -1) return; // mstari batili, ruka
+                const time = line.substring(0, dashIndex).trim();
+                const name = line.substring(dashIndex + 3).trim();
+                if (time !== "" && name !== "") {
+                    items.push({ time, name });
+                }
+            });
+            return items;
+        }
+
+        function bulkAddEpg() {
+            const rawText = document.getElementById('bulk-epg-input').value;
+            const mode = document.getElementById('bulk-epg-mode').value;
+            const parsedItems = parseBulkEpgText(rawText);
+
+            if (parsedItems.length === 0) {
+                alert('Hakuna kipindi halali kilichosomwa. Hakikisha kila mstari una mpangilio: SAA - JINA LA KIPINDI');
+                return;
+            }
+
+            const daysOfWeek = ['Jumapili', 'Jumatatu', 'Jumanne', 'Jumatano', 'Alhamisi', 'Ijumaa', 'Jumamosi'];
+
+            function pushItems(startOrder) {
+                const updates = {};
+                let order = startOrder;
+                if (mode === 'week') {
+                    daysOfWeek.forEach(dayName => {
+                        parsedItems.forEach(item => {
+                            const newKey = channelRef.child('epg').push().key;
+                            updates['epg/' + newKey] = {
+                                time: item.time,
+                                name: `[${dayName}] ${item.name}`,
+                                active: false,
+                                order: order++
+                            };
+                        });
+                    });
+                } else {
+                    parsedItems.forEach(item => {
+                        const newKey = channelRef.child('epg').push().key;
+                        updates['epg/' + newKey] = {
+                            time: item.time,
+                            name: item.name,
+                            active: false,
+                            order: order++
+                        };
+                    });
+                }
+                return updates;
+            }
+
+            if (mode === 'replace') {
+                channelRef.child('epg').remove().then(() => {
+                    const updates = pushItems(1);
+                    channelRef.update(updates).then(() => {
+                        document.getElementById('bulk-epg-input').value = '';
+                        showToast(`Ratiba Mpya Imewekwa (${parsedItems.length} vipindi) ✓`);
+                        db.ref('admin_logs').push({ time: Date.now(), action: `Aliweka ratiba mpya (${parsedItems.length} vipindi, mode: replace)` });
+                    });
+                });
+            } else {
+                channelRef.child('epg').once('value').then(snap => {
+                    const data = snap.val() || {};
+                    const maxOrder = Object.values(data).reduce((m, it) => Math.max(m, it.order || 0), 0);
+                    const updates = pushItems(maxOrder + 1);
+                    channelRef.update(updates).then(() => {
+                        document.getElementById('bulk-epg-input').value = '';
+                        const count = mode === 'week' ? parsedItems.length * 7 : parsedItems.length;
+                        showToast(`Vipindi ${count} Vimeongezwa Kwenye Ratiba ✓`);
+                        db.ref('admin_logs').push({ time: Date.now(), action: `Aliongeza vipindi ${count} kwenye ratiba (mode: ${mode})` });
+                    });
+                });
+            }
+        }
+
+        /* ============== SCHEDULER TAB (kupanga mapema) ============== */
+        function startSchedulerListener() {
+            channelRef.child('scheduled_changes').on('value', (snapshot) => {
+                const data = snapshot.val();
+                const list = document.getElementById('scheduled-list');
+                list.innerHTML = '';
+
+                if (!data) {
+                    list.innerHTML = '<div class="empty-state">Bado hakuna mpango uliopangwa...</div>';
+                    return;
+                }
+
+                const entries = Object.entries(data).sort((a, b) => a[1].triggerTime - b[1].triggerTime);
+                entries.forEach(([key, item]) => {
+                    const div = document.createElement('div');
+                    div.className = 'scheduled-item';
+                    const dateLabel = new Date(item.triggerTime).toLocaleString('sw-TZ');
+                    const statusLabel = item.executed ? ' · IMETEKELEZWA' : '';
+                    div.innerHTML = `
+                        <div class="scheduled-item-info">
+                            <div class="scheduled-item-time">${dateLabel}${statusLabel}</div>
+                            <div class="scheduled-item-desc">${escapeHTML(item.programTitle)} ${item.liveMode !== 'OFF' ? '· ' + item.liveMode : ''}</div>
+                        </div>
+                        <button class="btn-danger btn-small" data-key="${key}">Futa</button>`;
+                    div.querySelector('button').addEventListener('click', () => {
+                        channelRef.child('scheduled_changes/' + key).remove();
+                    });
+                    list.appendChild(div);
+                });
+            });
+        }
+
+        function addScheduledItem() {
+            const timeVal = document.getElementById('new-sched-time').value;
+            const program = document.getElementById('new-sched-program').value.trim();
+            const liveMode = document.getElementById('new-sched-live').value;
+
+            if (!timeVal || program === "") {
+                alert('Jaza tarehe/saa na jina la kipindi.');
+                return;
+            }
+
+            const triggerTime = new Date(timeVal).getTime();
+            if (triggerTime <= Date.now()) {
+                alert('Chagua muda ulioko mbeleni, sio uliopita.');
+                return;
+            }
+
+            channelRef.child('scheduled_changes').push({
+                triggerTime,
+                programTitle: program,
+                liveMode,
+                executed: false
+            }).then(() => {
+                document.getElementById('new-sched-program').value = '';
+                showToast('Mpango Umepangwa ✓');
+            });
+        }
+
+        // "Engine" rahisi: ikiwa dashboard hii (au index.html) iko wazi, kila sekunde 20
+        // inakagua kama kuna scheduled change ambayo muda wake umefika, na kuitekeleza.
+        function startSchedulerEngine() {
+            setInterval(() => {
+                channelRef.child('scheduled_changes').once('value').then(snap => {
+                    const data = snap.val();
+                    if (!data) return;
+                    Object.entries(data).forEach(([key, item]) => {
+                        if (!item.executed && Date.now() >= item.triggerTime) {
+                            const updates = {
+                                programTitle: item.programTitle,
+                                showLive: item.liveMode !== 'OFF',
+                                liveText: item.liveMode !== 'OFF' ? item.liveMode : 'LIVE'
+                            };
+                            channelRef.child('tv_config').update(updates);
+                            channelRef.child('scheduled_changes/' + key + '/executed').set(true);
+                            db.ref('admin_logs').push({ time: Date.now(), action: `Scheduler ilitekeleza: ${item.programTitle}` });
+                        }
+                    });
+                });
+            }, 20000);
+        }
+
+        /* ============== IDADI HALISI YA WATAZAMAJI + STATS ============== */
+        let peakViewers = 0;
+        const viewerHistory = [];
+
+        function startViewerCountListener() {
+            channelRef.child('presence/viewers').on('value', (snapshot) => {
+                const count = snapshot.numChildren();
+                document.getElementById('admin-viewer-count').innerText = count.toLocaleString();
+                document.getElementById('stat-current-viewers').innerText = count.toLocaleString();
+                if (count > peakViewers) {
+                    peakViewers = count;
+                    document.getElementById('stat-peak-viewers').innerText = peakViewers.toLocaleString();
+                }
+                viewerHistory.push({ t: Date.now(), v: count });
+                if (viewerHistory.length > 30) viewerHistory.shift();
+                drawViewerChart();
+            });
+        }
+
+        function startStatsListener() {
+            channelRef.child('chat_messages').on('value', (snapshot) => {
+                document.getElementById('stat-total-messages').innerText = snapshot.numChildren().toLocaleString();
+            });
+        }
+
+        function drawViewerChart() {
+            const canvas = document.getElementById('viewer-chart');
+            if (!canvas.getContext) return;
+            const ctx = canvas.getContext('2d');
+            const w = canvas.clientWidth || 300;
+            const h = 200;
+            canvas.width = w; canvas.height = h;
+            ctx.clearRect(0, 0, w, h);
+
+            if (viewerHistory.length < 2) return;
+            const maxV = Math.max(...viewerHistory.map(p => p.v), 1);
+            const stepX = w / (viewerHistory.length - 1);
+
+            ctx.beginPath();
+            ctx.strokeStyle = '#3b82f6';
+            ctx.lineWidth = 2;
+            viewerHistory.forEach((point, i) => {
+                const x = i * stepX;
+                const y = h - (point.v / maxV) * (h - 20) - 10;
+                if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+
+            ctx.lineTo(w, h);
+            ctx.lineTo(0, h);
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(59,130,246,0.1)';
+            ctx.fill();
+        }
+
+        /* ============== LIVE CHAT TAB ============== */
+        let selectedReplyMsgId = null;
+        const renderedAdminMessages = {};
+
+        function startAdminChatListener() {
+            const viewer = document.getElementById('admin-chat-viewer');
+
+            channelRef.child('chat_messages').limitToLast(100).on('child_added', (snapshot) => {
+                renderAdminMessage(snapshot.key, snapshot.val(), viewer);
+            });
+
+            channelRef.child('chat_messages').on('child_changed', (snapshot) => {
+                renderAdminReplies(snapshot.key, snapshot.val());
+            });
+        }
+
+        function renderAdminMessage(msgId, data, viewer) {
+            if (renderedAdminMessages[msgId]) return;
+            renderedAdminMessages[msgId] = true;
+
+            const emptyState = viewer.querySelector('.empty-state');
+            if (emptyState) emptyState.remove();
+
+            const div = document.createElement('div');
+            div.className = 'chat-row';
+            div.id = 'admin-row-' + msgId;
+
+            const isAdmin = data.isAdmin === true;
+            const userLabel = isAdmin ? 'BAM TECH (Admin)' : (data.user || 'Mhudhuriaji');
+            const time = data.time ? new Date(data.time).toLocaleTimeString() : '';
+
+            div.innerHTML = `<span style="color:#64748b; font-size:10px;">[${time}]</span>
+                              <strong class="${isAdmin ? 'is-admin' : ''}">${escapeHTML(userLabel)}:</strong>
+                              <span>${escapeHTML(data.text)}</span>
+                              <span class="reply-link" data-msgid="${msgId}" data-userlabel="${escapeHTML(userLabel)}">[JIBU]</span>
+                              <div class="reply-thread-admin" id="admin-thread-${msgId}"></div>`;
+
+            div.querySelector('.reply-link').addEventListener('click', function() {
+                setupReplyTag(this.getAttribute('data-msgid'), this.getAttribute('data-userlabel'));
+            });
+
+            viewer.appendChild(div);
+            viewer.scrollTop = viewer.scrollHeight;
+
+            if (data.replies) renderAdminReplies(msgId, data);
+        }
+
+        function renderAdminReplies(msgId, data) {
+            const threadDiv = document.getElementById('admin-thread-' + msgId);
+            if (!threadDiv || !data.replies) return;
+            threadDiv.innerHTML = '';
+            Object.values(data.replies).forEach((reply) => {
+                const r = document.createElement('div');
+                r.className = 'reply-row';
+                r.innerText = '↳ Wewe: ' + reply.text;
+                threadDiv.appendChild(r);
+            });
+        }
+
+        function setupReplyTag(msgId, userLabel) {
+            selectedReplyMsgId = msgId;
+            document.getElementById('reply-target-label').innerText = `Unajibu @${userLabel}:`;
+            document.getElementById('admin-reply-input').placeholder = `Jibu kwa ${userLabel}...`;
+            document.getElementById('admin-reply-input').focus();
+        }
+
+        function sendAdminReplyDirect() {
+            const text = document.getElementById('admin-reply-input').value.trim();
+            if (text === "") return;
+
+            if (!selectedReplyMsgId) {
+                alert('Chagua [JIBU] kwenye ujumbe husika kwanza, kabla ya kutuma jibu.');
+                return;
+            }
+
+            const newReplyKey = db.ref().push().key;
+            channelRef.child('chat_messages/' + selectedReplyMsgId + '/replies/' + newReplyKey).set({
+                text: text,
+                time: Date.now(),
+                fromAdmin: true
+            }).then(() => {
+                document.getElementById('admin-reply-input').value = '';
+            }).catch((err) => alert('Hitilafu: ' + err.message));
+        }
+
+        document.getElementById('admin-reply-input').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') sendAdminReplyDirect();
+        });
+
+        function clearChatLog() {
+            if (confirm("Je, una uhakika unataka kufuta maoni yote kwenye orodha? Hatua hii haiwezi kurudishwa.")) {
+                channelRef.child('chat_messages').remove().then(() => {
+                    document.getElementById('admin-chat-viewer').innerHTML = '<div class="empty-state">Bado hakuna maoni...</div>';
+                    Object.keys(renderedAdminMessages).forEach(k => delete renderedAdminMessages[k]);
+                });
+            }
+        }
+    </script>
+</body>
+</html>
 
