@@ -48,51 +48,132 @@
             align-items: center; gap: 6px;
         }
 
-        /* ============== HOME VIEW: CHANNEL GRID ============== */
-        #home-view { max-width: 1100px; margin: 0 auto; padding: 20px 16px 60px; }
-        .home-hero { margin: 10px 0 24px; }
-        .home-hero h1 { font-size: 24px; font-weight: 850; color: #fff; margin-bottom: 6px; }
-        .home-hero p { font-size: 13px; color: #94a3b8; }
+        /* ============== HOME VIEW: ROWS + HERO CAROUSEL ============== */
+        #home-view { max-width: 1300px; margin: 0 auto; padding: 0 0 60px; }
 
+        .home-search-bar-wrap { padding: 14px 16px 0; }
         .channel-search-bar {
             width: 100%; background: #0f172a; border: 1px solid rgba(255,255,255,0.08);
-            padding: 12px 16px; border-radius: 10px; color: #fff; font-size: 13px; outline: none; margin-bottom: 22px;
+            padding: 12px 16px; border-radius: 10px; color: #fff; font-size: 13px; outline: none;
         }
 
-        .channel-grid {
-            display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px;
+        /* Hero carousel (channel zenye LIVE au za kwanza kwa kila category) */
+        .hero-carousel {
+            position: relative; width: 100%; aspect-ratio: 16/8; max-height: 340px;
+            overflow: hidden; margin: 14px 0 28px; background: #0f172a;
         }
-        @media (min-width: 640px) { .channel-grid { grid-template-columns: repeat(3, 1fr); } }
-        @media (min-width: 900px) { .channel-grid { grid-template-columns: repeat(4, 1fr); } }
+        @media (min-width: 640px) { .hero-carousel { aspect-ratio: 16/6; } }
+        .hero-carousel-track {
+            display: flex; height: 100%; transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .hero-slide {
+            flex: 0 0 100%; height: 100%; position: relative; cursor: pointer;
+            display: flex; align-items: flex-end; overflow: hidden;
+        }
+        .hero-slide img {
+            position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+        }
+        .hero-slide-fallback {
+            position: absolute; inset: 0; background: linear-gradient(135deg, #1e3a8a, #0f172a);
+            display: flex; align-items: center; justify-content: center; font-size: 50px; opacity: 0.3;
+        }
+        .hero-slide-gradient {
+            position: absolute; inset: 0;
+            background: linear-gradient(180deg, rgba(2,6,23,0) 30%, rgba(2,6,23,0.75) 75%, rgba(2,6,23,0.95) 100%);
+        }
+        .hero-slide-info { position: relative; z-index: 2; padding: 18px 18px 22px; width: 100%; }
+        .hero-slide-pill {
+            display: inline-flex; align-items: center; gap: 5px; background: #dc2626; color: #fff;
+            font-size: 9px; font-weight: 800; padding: 3px 9px; border-radius: 5px; letter-spacing: 0.5px; margin-bottom: 8px;
+        }
+        .hero-slide-name { font-size: 21px; font-weight: 850; color: #fff; line-height: 1.2; text-shadow: 0 2px 10px rgba(0,0,0,0.6); }
+        .hero-slide-category { font-size: 11.5px; color: #93c5fd; font-weight: 600; margin-top: 4px; }
+        .hero-carousel-dots {
+            position: absolute; bottom: 10px; right: 14px; z-index: 3; display: flex; gap: 5px;
+        }
+        .hero-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.35); transition: background 0.2s, width 0.2s; }
+        .hero-dot.active { background: #fff; width: 18px; border-radius: 3px; }
+
+        /* Rows ya makundi (kama 'Sports', 'News', n.k) */
+        .home-row { margin-bottom: 26px; }
+        .row-title {
+            font-size: 15px; font-weight: 800; color: #f1f5f9; padding: 0 16px; margin-bottom: 10px;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .row-title .row-count { font-size: 11px; color: #64748b; font-weight: 600; }
+        .channel-row-track {
+            display: flex; gap: 10px; overflow-x: auto; padding: 0 16px 4px; scroll-snap-type: x proximity;
+            -webkit-overflow-scrolling: touch;
+        }
+        .channel-row-track::-webkit-scrollbar { display: none; }
 
         .channel-card {
-            background: #0f172a; border: 1px solid rgba(255,255,255,0.06); border-radius: 14px;
+            flex: 0 0 150px; background: #0f172a; border: 1px solid rgba(255,255,255,0.06); border-radius: 12px;
             overflow: hidden; cursor: pointer; transition: transform 0.15s ease, border-color 0.15s ease;
-            display: flex; flex-direction: column;
+            display: flex; flex-direction: column; scroll-snap-align: start;
         }
+        @media (min-width: 640px) { .channel-card { flex: 0 0 180px; } }
         .channel-card:hover { transform: translateY(-3px); border-color: rgba(59,130,246,0.4); }
         .channel-card-thumb {
             width: 100%; aspect-ratio: 16/9; background: linear-gradient(135deg, #1e3a8a, #0f172a);
             display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden;
         }
         .channel-card-thumb img { width: 100%; height: 100%; object-fit: cover; }
-        .channel-card-thumb .fallback-icon { font-size: 30px; opacity: 0.4; }
+        .channel-card-thumb .fallback-icon { font-size: 26px; opacity: 0.4; }
         .channel-card-live-pill {
-            position: absolute; top: 8px; left: 8px; background: #dc2626; color: #fff;
-            font-size: 9px; font-weight: 800; padding: 3px 8px; border-radius: 5px; letter-spacing: 0.5px;
+            position: absolute; top: 7px; left: 7px; background: #dc2626; color: #fff;
+            font-size: 8.5px; font-weight: 800; padding: 3px 7px; border-radius: 5px; letter-spacing: 0.5px;
             display: none; align-items: center; gap: 4px;
         }
         .channel-card-viewers {
-            position: absolute; bottom: 8px; right: 8px; background: rgba(0,0,0,0.6); color: #e2e8f0;
-            font-size: 9px; font-weight: 700; padding: 3px 7px; border-radius: 5px;
+            position: absolute; bottom: 7px; right: 7px; background: rgba(0,0,0,0.6); color: #e2e8f0;
+            font-size: 8.5px; font-weight: 700; padding: 3px 6px; border-radius: 5px;
         }
-        .channel-card-info { padding: 10px 12px; }
-        .channel-card-name { font-size: 13px; font-weight: 700; color: #f1f5f9; line-height: 1.3; }
-        .channel-card-category { font-size: 10.5px; color: #64748b; margin-top: 3px; }
+        .channel-card-info { padding: 9px 10px; }
+        .channel-card-name { font-size: 12.5px; font-weight: 700; color: #f1f5f9; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .channel-card-category { font-size: 10px; color: #64748b; margin-top: 2px; }
 
         .home-empty-state {
             text-align: center; padding: 60px 20px; color: #64748b; font-size: 13px;
         }
+
+        /* ============== DETAIL VIEW (kabla ya player) ============== */
+        #detail-view { max-width: 900px; margin: 0 auto; }
+        .detail-banner {
+            position: relative; width: 100%; aspect-ratio: 16/9; max-height: 420px; overflow: hidden;
+            background: linear-gradient(135deg, #1e3a8a, #0f172a); display: flex; align-items: flex-end;
+        }
+        .detail-banner img.detail-banner-bg {
+            position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.55;
+        }
+        .detail-banner-gradient {
+            position: absolute; inset: 0;
+            background: linear-gradient(180deg, rgba(2,6,23,0.2) 0%, rgba(2,6,23,0.85) 70%, rgba(2,6,23,1) 100%);
+        }
+        .detail-banner-content { position: relative; z-index: 2; padding: 20px 18px 24px; width: 100%; }
+        .detail-banner-content h1 { font-size: 26px; font-weight: 850; color: #fff; line-height: 1.2; margin-bottom: 8px; }
+        .detail-meta-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+        .detail-live-pill {
+            display: inline-flex; align-items: center; gap: 5px; background: #dc2626; color: #fff;
+            font-size: 10px; font-weight: 800; padding: 4px 10px; border-radius: 6px; letter-spacing: 0.5px; display: none;
+        }
+        .detail-category {
+            background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.3); color: #93c5fd;
+            font-size: 10.5px; font-weight: 700; padding: 4px 10px; border-radius: 6px;
+        }
+        .detail-viewers { font-size: 11.5px; color: #94a3b8; font-weight: 600; }
+        .detail-desc { font-size: 13px; color: #cbd5e1; line-height: 1.5; max-width: 600px; margin-bottom: 16px; }
+        .detail-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+        .detail-btn-primary {
+            background: #fff; color: #020617; border: none; padding: 11px 22px; border-radius: 8px;
+            font-size: 13px; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 6px;
+        }
+        .detail-btn-secondary {
+            background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15); color: #fff;
+            padding: 11px 18px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer;
+        }
+        .detail-btn-secondary.is-active { background: rgba(220,38,38,0.2); border-color: rgba(220,38,38,0.4); color: #fca5a5; }
+        .detail-related-section { padding: 24px 0; }
 
         /* ============== PLAYER VIEW (channel mahususi) ============== */
         #player-view-container { width: 100%; max-width: 950px; margin: 0 auto; padding: 16px; display: grid; grid-template-columns: 1fr; gap: 20px; }
@@ -267,18 +348,47 @@
         <button class="back-to-home-btn" id="back-home-btn" onclick="goHome()">← Channel Zote</button>
     </div>
 
-    <!-- ============== HOME VIEW: CHANNEL GRID ============== -->
+    <!-- ============== HOME VIEW: ROWS + HERO CAROUSEL ============== -->
     <div id="home-view">
-        <div class="home-hero">
-            <h1>Chagua Channel</h1>
-            <p>Tazama channel mbalimbali za BAM TECH WEB APP na washirika wetu.</p>
+        <div class="home-search-bar-wrap">
+            <input type="text" class="channel-search-bar" id="channel-grid-search" placeholder="🔍 Tafuta channel kwa jina...">
         </div>
 
-        <input type="text" class="channel-search-bar" id="channel-grid-search" placeholder="🔍 Tafuta channel kwa jina...">
+        <div class="hero-carousel" id="hero-carousel">
+            <div class="hero-carousel-track" id="hero-carousel-track"></div>
+            <div class="hero-carousel-dots" id="hero-carousel-dots"></div>
+        </div>
 
-        <div class="channel-grid" id="channel-grid">
+        <div id="home-rows-container">
             <div class="home-empty-state">Inapakia channel...</div>
         </div>
+
+        <div id="home-search-results" class="hidden-view">
+            <h3 class="row-title">Matokeo ya Utafutaji</h3>
+            <div class="channel-row-track" id="search-results-track"></div>
+        </div>
+    </div>
+
+    <!-- ============== DETAIL VIEW: CHANNEL MAHUSUSI (KABLA YA PLAYER) ============== -->
+    <div id="detail-view" class="hidden-view">
+        <div class="detail-banner" id="detail-banner">
+            <div class="detail-banner-gradient"></div>
+            <div class="detail-banner-content">
+                <h1 id="dv-channel-name">Channel</h1>
+                <div class="detail-meta-row">
+                    <span class="detail-live-pill" id="dv-live-pill"><span class="live-dot"></span>LIVE</span>
+                    <span class="detail-category" id="dv-category">Burudani</span>
+                    <span class="detail-viewers">👁 <span id="dv-viewers">0</span> watazamaji</span>
+                </div>
+                <p class="detail-desc" id="dv-description">Maelezo ya channel...</p>
+                <div class="detail-actions">
+                    <button class="detail-btn-primary" id="dv-watch-btn">▶ Tazama Sasa</button>
+                    <button class="detail-btn-secondary" id="dv-fav-btn">♡ Favorites</button>
+                    <button class="detail-btn-secondary" id="dv-share-btn">🔗 Share</button>
+                </div>
+            </div>
+        </div>
+        <div class="detail-related-section" id="detail-related-section"></div>
     </div>
 
     <!-- ============== PLAYER VIEW: CHANNEL MAHUSUSI ============== -->
@@ -464,105 +574,334 @@
             return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
         }
 
-        /* ============== ROUTING: HOME vs PLAYER VIEW ============== */
+        /* ============== ROUTING: HOME / DETAIL / PLAYER VIEW ============== */
         let currentChannelId = null;
-        const activeFirebaseListeners = [];
 
         function getChannelIdFromURL() {
             const params = new URLSearchParams(window.location.search);
             return params.get('channel');
+        }
+        function getViewModeFromURL() {
+            const params = new URLSearchParams(window.location.search);
+            return params.get('view') || 'detail'; // 'detail' au 'watch'
         }
 
         function goHome() {
             window.location.href = window.location.pathname;
         }
 
-        function goToChannel(channelId) {
-            window.location.href = window.location.pathname + '?channel=' + encodeURIComponent(channelId);
+        function goToDetail(channelId) {
+            window.location.href = window.location.pathname + '?channel=' + encodeURIComponent(channelId) + '&view=detail';
+        }
+
+        function goToWatch(channelId) {
+            window.location.href = window.location.pathname + '?channel=' + encodeURIComponent(channelId) + '&view=watch';
         }
 
         function showHomeView() {
             document.getElementById('home-view').classList.remove('hidden-view');
+            document.getElementById('detail-view').classList.add('hidden-view');
             document.getElementById('player-view-container').classList.add('hidden-view');
             document.getElementById('back-home-btn').style.display = 'none';
-            loadChannelGrid();
+            loadHomeRows();
+        }
+
+        function showDetailView(channelId) {
+            document.getElementById('home-view').classList.add('hidden-view');
+            document.getElementById('detail-view').classList.remove('hidden-view');
+            document.getElementById('player-view-container').classList.add('hidden-view');
+            document.getElementById('back-home-btn').style.display = 'flex';
+            currentChannelId = channelId;
+            initDetailView(channelId);
         }
 
         function showPlayerView(channelId) {
             document.getElementById('home-view').classList.add('hidden-view');
+            document.getElementById('detail-view').classList.add('hidden-view');
             document.getElementById('player-view-container').classList.remove('hidden-view');
             document.getElementById('back-home-btn').style.display = 'flex';
             currentChannelId = channelId;
             initChannelPlayer(channelId);
         }
 
-        /* ============== HOME VIEW: CHANNEL GRID ============== */
+        /* ============== HOME VIEW: HERO CAROUSEL + ROWS ============== */
         let allChannelsCache = [];
+        let heroSlideIndex = 0;
+        let heroAutoTimer = null;
 
-        function loadChannelGrid() {
+        function loadHomeRows() {
             db.ref('channels_meta').on('value', (snapshot) => {
                 const data = snapshot.val();
-                const grid = document.getElementById('channel-grid');
+                const rowsContainer = document.getElementById('home-rows-container');
 
                 if (!data) {
-                    grid.innerHTML = '<div class="home-empty-state">Bado hakuna channel iliyowekwa.</div>';
+                    rowsContainer.innerHTML = '<div class="home-empty-state">Bado hakuna channel iliyowekwa.</div>';
+                    document.getElementById('hero-carousel').style.display = 'none';
                     return;
                 }
 
                 allChannelsCache = Object.entries(data).map(([id, ch]) => ({ id, ...ch }));
-                renderChannelGrid(allChannelsCache);
-                attachViewerCountsToGrid(allChannelsCache.map(c => c.id));
+                renderHeroCarousel(allChannelsCache);
+                renderHomeRows(allChannelsCache);
+                attachViewerCountsToAll(allChannelsCache.map(c => c.id));
             });
         }
 
-        function renderChannelGrid(channels) {
-            const grid = document.getElementById('channel-grid');
-            grid.innerHTML = '';
+        function renderHeroCarousel(channels) {
+            const carousel = document.getElementById('hero-carousel');
+            const track = document.getElementById('hero-carousel-track');
+            const dotsWrap = document.getElementById('hero-carousel-dots');
+
+            // Chukua hadi channel 6 za kwanza kwa carousel (mfano mzuri wa kuonyesha)
+            const slides = channels.slice(0, 6);
+            if (slides.length === 0) { carousel.style.display = 'none'; return; }
+            carousel.style.display = 'block';
+
+            track.innerHTML = '';
+            dotsWrap.innerHTML = '';
+
+            slides.forEach((ch, i) => {
+                const slide = document.createElement('div');
+                slide.className = 'hero-slide';
+                slide.innerHTML = `
+                    ${ch.logo ? `<img src="${escapeHTML(ch.logo)}" alt="${escapeHTML(ch.name)}" onerror="this.style.display='none';">` : '<div class="hero-slide-fallback">📺</div>'}
+                    <div class="hero-slide-gradient"></div>
+                    <div class="hero-slide-info">
+                        <span class="hero-slide-pill" id="hero-live-${ch.id}" style="display:none;"><span class="live-dot"></span>LIVE</span>
+                        <div class="hero-slide-name">${escapeHTML(ch.name)}</div>
+                        <div class="hero-slide-category">${escapeHTML(ch.category || 'Burudani')}</div>
+                    </div>`;
+                slide.addEventListener('click', () => goToDetail(ch.id));
+                track.appendChild(slide);
+
+                const dot = document.createElement('div');
+                dot.className = 'hero-dot' + (i === 0 ? ' active' : '');
+                dot.addEventListener('click', (e) => { e.stopPropagation(); setHeroSlide(i); });
+                dotsWrap.appendChild(dot);
+            });
+
+            heroSlideIndex = 0;
+            updateHeroTrackPosition();
+            if (heroAutoTimer) clearInterval(heroAutoTimer);
+            if (slides.length > 1) {
+                heroAutoTimer = setInterval(() => {
+                    setHeroSlide((heroSlideIndex + 1) % slides.length);
+                }, 6000);
+            }
+        }
+
+        function setHeroSlide(index) {
+            heroSlideIndex = index;
+            updateHeroTrackPosition();
+        }
+
+        function updateHeroTrackPosition() {
+            const track = document.getElementById('hero-carousel-track');
+            track.style.transform = `translateX(-${heroSlideIndex * 100}%)`;
+            document.querySelectorAll('.hero-dot').forEach((dot, i) => {
+                dot.classList.toggle('active', i === heroSlideIndex);
+            });
+        }
+
+        function renderHomeRows(channels) {
+            const rowsContainer = document.getElementById('home-rows-container');
+            rowsContainer.innerHTML = '';
 
             if (channels.length === 0) {
-                grid.innerHTML = '<div class="home-empty-state">Hakuna channel iliyolingana na utafutaji wako.</div>';
+                rowsContainer.innerHTML = '<div class="home-empty-state">Bado hakuna channel iliyowekwa.</div>';
                 return;
             }
 
-            channels.forEach((ch) => {
-                const card = document.createElement('div');
-                card.className = 'channel-card';
-                card.innerHTML = `
-                    <div class="channel-card-thumb">
-                        ${ch.logo ? `<img src="${escapeHTML(ch.logo)}" alt="${escapeHTML(ch.name)}" onerror="this.style.display='none'; this.parentElement.querySelector('.fallback-icon').style.display='block';">` : ''}
-                        <span class="fallback-icon" style="${ch.logo ? 'display:none;' : 'display:block;'}">📺</span>
-                        <span class="channel-card-live-pill" id="grid-live-${ch.id}"><span class="live-dot"></span>LIVE</span>
-                        <span class="channel-card-viewers" id="grid-viewers-${ch.id}">👁 0</span>
-                    </div>
-                    <div class="channel-card-info">
-                        <div class="channel-card-name">${escapeHTML(ch.name)}</div>
-                        <div class="channel-card-category">${escapeHTML(ch.category || 'Burudani')}</div>
-                    </div>`;
-                card.addEventListener('click', () => goToChannel(ch.id));
-                grid.appendChild(card);
+            // Panga channel kwa category
+            const categorized = {};
+            channels.forEach(ch => {
+                const cat = ch.category && ch.category.trim() !== '' ? ch.category.trim() : 'Burudani';
+                if (!categorized[cat]) categorized[cat] = [];
+                categorized[cat].push(ch);
+            });
+
+            Object.entries(categorized).forEach(([category, chList]) => {
+                const rowDiv = document.createElement('div');
+                rowDiv.className = 'home-row';
+                rowDiv.innerHTML = `
+                    <div class="row-title">${escapeHTML(category)} <span class="row-count">(${chList.length})</span></div>
+                    <div class="channel-row-track" id="row-track-${slugify(category)}"></div>`;
+                rowsContainer.appendChild(rowDiv);
+
+                const track = rowDiv.querySelector('.channel-row-track');
+                chList.forEach(ch => track.appendChild(buildChannelCard(ch)));
             });
         }
 
-        function attachViewerCountsToGrid(channelIds) {
+        function slugify(text) {
+            return text.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        }
+
+        function buildChannelCard(ch) {
+            const card = document.createElement('div');
+            card.className = 'channel-card';
+            card.innerHTML = `
+                <div class="channel-card-thumb">
+                    ${ch.logo ? `<img src="${escapeHTML(ch.logo)}" alt="${escapeHTML(ch.name)}" onerror="this.style.display='none'; this.parentElement.querySelector('.fallback-icon').style.display='block';">` : ''}
+                    <span class="fallback-icon" style="${ch.logo ? 'display:none;' : 'display:block;'}">📺</span>
+                    <span class="channel-card-live-pill" id="grid-live-${ch.id}"><span class="live-dot"></span>LIVE</span>
+                    <span class="channel-card-viewers" id="grid-viewers-${ch.id}">👁 0</span>
+                </div>
+                <div class="channel-card-info">
+                    <div class="channel-card-name">${escapeHTML(ch.name)}</div>
+                    <div class="channel-card-category">${escapeHTML(ch.category || 'Burudani')}</div>
+                </div>`;
+            card.addEventListener('click', () => goToDetail(ch.id));
+            return card;
+        }
+
+        function attachViewerCountsToAll(channelIds) {
             channelIds.forEach(id => {
                 db.ref('channels/' + id + '/presence/viewers').on('value', (snap) => {
-                    const el = document.getElementById('grid-viewers-' + id);
-                    if (el) el.innerText = '👁 ' + snap.numChildren().toLocaleString();
+                    const count = snap.numChildren();
+                    document.querySelectorAll(`[id="grid-viewers-${id}"]`).forEach(el => {
+                        el.innerText = '👁 ' + count.toLocaleString();
+                    });
+                    const dvViewers = document.getElementById('dv-viewers');
+                    if (dvViewers && currentChannelId === id) dvViewers.innerText = count.toLocaleString();
                 });
                 db.ref('channels/' + id + '/tv_config').on('value', (snap) => {
                     const cfg = snap.val();
-                    const pillEl = document.getElementById('grid-live-' + id);
-                    if (pillEl) pillEl.style.display = (cfg && cfg.showLive) ? 'flex' : 'none';
+                    const isLive = !!(cfg && cfg.showLive);
+                    document.querySelectorAll(`[id="grid-live-${id}"]`).forEach(el => {
+                        el.style.display = isLive ? 'flex' : 'none';
+                    });
+                    const heroLive = document.getElementById('hero-live-' + id);
+                    if (heroLive) heroLive.style.display = isLive ? 'inline-flex' : 'none';
                 });
             });
         }
 
         document.getElementById('channel-grid-search').addEventListener('input', function() {
             const query = this.value.trim().toLowerCase();
-            if (query === '') { renderChannelGrid(allChannelsCache); return; }
+            const rowsContainer = document.getElementById('home-rows-container');
+            const heroCarousel = document.getElementById('hero-carousel');
+            const searchResults = document.getElementById('home-search-results');
+
+            if (query === '') {
+                rowsContainer.classList.remove('hidden-view');
+                heroCarousel.classList.remove('hidden-view');
+                searchResults.classList.add('hidden-view');
+                return;
+            }
+
+            rowsContainer.classList.add('hidden-view');
+            heroCarousel.classList.add('hidden-view');
+            searchResults.classList.remove('hidden-view');
+
             const filtered = allChannelsCache.filter(ch => ch.name.toLowerCase().includes(query));
-            renderChannelGrid(filtered);
+            const track = document.getElementById('search-results-track');
+            track.innerHTML = '';
+            if (filtered.length === 0) {
+                track.innerHTML = '<div class="home-empty-state">Hakuna channel iliyolingana na utafutaji wako.</div>';
+                return;
+            }
+            filtered.forEach(ch => track.appendChild(buildChannelCard(ch)));
+            attachViewerCountsToAll(filtered.map(c => c.id));
         });
+
+        /* ============== DETAIL VIEW (kabla ya player) ============== */
+        const FAVORITES_KEY = 'bamtech_favorite_channels';
+
+        function getFavorites() {
+            try { return JSON.parse(localStorage.getItem(FAVORITES_KEY)) || []; } catch (e) { return []; }
+        }
+        function isFavorite(channelId) {
+            return getFavorites().includes(channelId);
+        }
+        function toggleFavorite(channelId) {
+            let favs = getFavorites();
+            if (favs.includes(channelId)) { favs = favs.filter(id => id !== channelId); }
+            else { favs.push(channelId); }
+            localStorage.setItem(FAVORITES_KEY, JSON.stringify(favs));
+            return favs.includes(channelId);
+        }
+
+        function initDetailView(channelId) {
+            db.ref('channels_meta/' + channelId).once('value').then(snap => {
+                const ch = snap.val();
+                if (!ch) { goHome(); return; }
+
+                document.getElementById('dv-channel-name').innerText = ch.name || 'Channel';
+                document.getElementById('dv-category').innerText = ch.category || 'Burudani';
+                document.getElementById('dv-description').innerText = ch.description || 'Hakuna maelezo zaidi kwa channel hii.';
+                document.title = (ch.name || 'Channel') + ' | BAM TECH WEB APP';
+
+                const banner = document.getElementById('detail-banner');
+                let existingImg = banner.querySelector('.detail-banner-bg');
+                if (existingImg) existingImg.remove();
+                if (ch.logo) {
+                    const img = document.createElement('img');
+                    img.className = 'detail-banner-bg';
+                    img.src = ch.logo;
+                    img.alt = ch.name || '';
+                    banner.insertBefore(img, banner.firstChild);
+                }
+
+                updateFavButtonUI(channelId);
+            });
+
+            db.ref('channels/' + channelId + '/tv_config').on('value', (snap) => {
+                const cfg = snap.val();
+                document.getElementById('dv-live-pill').style.display = (cfg && cfg.showLive) ? 'inline-flex' : 'none';
+            });
+
+            db.ref('channels/' + channelId + '/presence/viewers').on('value', (snap) => {
+                document.getElementById('dv-viewers').innerText = snap.numChildren().toLocaleString();
+            });
+
+            document.getElementById('dv-watch-btn').onclick = () => goToWatch(channelId);
+            document.getElementById('dv-share-btn').onclick = () => {
+                navigator.clipboard.writeText(window.location.href);
+                const toast = document.getElementById('toast-notif');
+                toast.classList.add('show');
+                setTimeout(() => { toast.classList.remove('show'); }, 3000);
+            };
+            document.getElementById('dv-fav-btn').onclick = () => {
+                const nowFav = toggleFavorite(channelId);
+                updateFavButtonUI(channelId, nowFav);
+            };
+
+            renderRelatedChannels(channelId);
+        }
+
+        function updateFavButtonUI(channelId, forcedState) {
+            const btn = document.getElementById('dv-fav-btn');
+            const fav = (forcedState !== undefined) ? forcedState : isFavorite(channelId);
+            btn.innerHTML = fav ? '♥ Kwenye Favorites' : '♡ Favorites';
+            btn.classList.toggle('is-active', fav);
+        }
+
+        function renderRelatedChannels(channelId) {
+            const section = document.getElementById('detail-related-section');
+            section.innerHTML = '';
+            db.ref('channels_meta').once('value').then(snap => {
+                const data = snap.val();
+                if (!data) return;
+                const currentCh = data[channelId];
+                if (!currentCh) return;
+
+                const related = Object.entries(data)
+                    .filter(([id, ch]) => id !== channelId && ch.category === currentCh.category)
+                    .map(([id, ch]) => ({ id, ...ch }));
+
+                if (related.length === 0) return;
+
+                const rowDiv = document.createElement('div');
+                rowDiv.className = 'home-row';
+                rowDiv.innerHTML = `<div class="row-title">Channel Nyingine za ${escapeHTML(currentCh.category || 'Burudani')}</div>
+                                     <div class="channel-row-track" id="related-track"></div>`;
+                section.appendChild(rowDiv);
+                const track = rowDiv.querySelector('.channel-row-track');
+                related.forEach(ch => track.appendChild(buildChannelCard(ch)));
+                attachViewerCountsToAll(related.map(c => c.id));
+            });
+        }
 
         /* ============== VIDEO PLAYER ============== */
         let STREAM_URL = '';
@@ -964,8 +1303,13 @@
         /* ============== KUANZA: ANGALIA URL NA CHAGUA VIEW SAHIHI ============== */
         (function boot() {
             const channelId = getChannelIdFromURL();
-            if (channelId) { showPlayerView(channelId); }
-            else { showHomeView(); }
+            if (channelId) {
+                const viewMode = getViewModeFromURL();
+                if (viewMode === 'watch') { showPlayerView(channelId); }
+                else { showDetailView(channelId); }
+            } else {
+                showHomeView();
+            }
         })();
     </script>
 </body>
