@@ -1,1 +1,952 @@
+<!DOCTYPE html>
+<html lang="sw">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>BAM TECH Solutions | Streaming Platform</title>
+
+    <!-- KUZUIA CACHE YA ZAMANI -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                for (let registration of registrations) { registration.unregister(); }
+            });
+        }
+        if (window.caches && caches.keys) {
+            caches.keys().then(function(names) {
+                for (let name of names) { caches.delete(name); }
+            });
+        }
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+        body { background: #020617; color: #f8fafc; min-height: 100vh; overflow-x: hidden; }
+        .hidden-view { display: none !important; }
+
+        /* ============== TOPBAR (Inaonekana kwenye Home na Player) ============== */
+        .platform-topbar {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 14px 18px; border-bottom: 1px solid rgba(255,255,255,0.08);
+            position: sticky; top: 0; background: #020617; z-index: 500;
+        }
+        .platform-brand { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+        .platform-brand-text { display: flex; flex-direction: column; line-height: 1; }
+        .platform-brand-title { font-size: 16px; font-weight: 900; color: #fff; letter-spacing: 0.6px; text-transform: uppercase; }
+        .platform-brand-subtitle { font-size: 9px; font-weight: 500; color: #64748b; text-transform: lowercase; letter-spacing: 1px; }
+        .platform-brand-mark { font-size: 32px; font-weight: 950; font-style: italic; background: linear-gradient(135deg, #3b82f6, #1d4ed8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; line-height: 0.8; filter: drop-shadow(0 0 12px rgba(59,130,246,0.5)); }
+        .back-to-home-btn {
+            background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: #fff;
+            padding: 8px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; display: none;
+            align-items: center; gap: 6px;
+        }
+
+        /* ============== HOME VIEW: CHANNEL GRID ============== */
+        #home-view { max-width: 1100px; margin: 0 auto; padding: 20px 16px 60px; }
+        .home-hero { margin: 10px 0 24px; }
+        .home-hero h1 { font-size: 24px; font-weight: 850; color: #fff; margin-bottom: 6px; }
+        .home-hero p { font-size: 13px; color: #94a3b8; }
+
+        .channel-search-bar {
+            width: 100%; background: #0f172a; border: 1px solid rgba(255,255,255,0.08);
+            padding: 12px 16px; border-radius: 10px; color: #fff; font-size: 13px; outline: none; margin-bottom: 22px;
+        }
+
+        .channel-grid {
+            display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px;
+        }
+        @media (min-width: 640px) { .channel-grid { grid-template-columns: repeat(3, 1fr); } }
+        @media (min-width: 900px) { .channel-grid { grid-template-columns: repeat(4, 1fr); } }
+
+        .channel-card {
+            background: #0f172a; border: 1px solid rgba(255,255,255,0.06); border-radius: 14px;
+            overflow: hidden; cursor: pointer; transition: transform 0.15s ease, border-color 0.15s ease;
+            display: flex; flex-direction: column;
+        }
+        .channel-card:hover { transform: translateY(-3px); border-color: rgba(59,130,246,0.4); }
+        .channel-card-thumb {
+            width: 100%; aspect-ratio: 16/9; background: linear-gradient(135deg, #1e3a8a, #0f172a);
+            display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden;
+        }
+        .channel-card-thumb img { width: 100%; height: 100%; object-fit: cover; }
+        .channel-card-thumb .fallback-icon { font-size: 30px; opacity: 0.4; }
+        .channel-card-live-pill {
+            position: absolute; top: 8px; left: 8px; background: #dc2626; color: #fff;
+            font-size: 9px; font-weight: 800; padding: 3px 8px; border-radius: 5px; letter-spacing: 0.5px;
+            display: none; align-items: center; gap: 4px;
+        }
+        .channel-card-viewers {
+            position: absolute; bottom: 8px; right: 8px; background: rgba(0,0,0,0.6); color: #e2e8f0;
+            font-size: 9px; font-weight: 700; padding: 3px 7px; border-radius: 5px;
+        }
+        .channel-card-info { padding: 10px 12px; }
+        .channel-card-name { font-size: 13px; font-weight: 700; color: #f1f5f9; line-height: 1.3; }
+        .channel-card-category { font-size: 10.5px; color: #64748b; margin-top: 3px; }
+
+        .home-empty-state {
+            text-align: center; padding: 60px 20px; color: #64748b; font-size: 13px;
+        }
+
+        /* ============== PLAYER VIEW (channel mahususi) ============== */
+        #player-view-container { width: 100%; max-width: 950px; margin: 0 auto; padding: 16px; display: grid; grid-template-columns: 1fr; gap: 20px; }
+        @media (min-width: 850px) {
+            #player-view-container { grid-template-columns: 1fr 320px; }
+            .main-content { grid-column: 1; }
+            .sidebar-content { grid-column: 2; }
+            .hero-wide { grid-column: 1 / span 2; }
+        }
+
+        .hero { text-align: left; margin: 5px 0 5px 0; }
+        .hero h1 { font-size: 24px; font-weight: 850; color: #ffffff; margin-bottom: 6px; }
+        .hero p { font-size: 13px; color: #94a3b8; }
+
+        .player-container-wrapper { position: relative; width: 100%; }
+        .player-glow {
+            position: absolute; top: 5%; left: 5%; width: 90%; height: 90%;
+            background: linear-gradient(135deg, #1e3a8a, #3b82f6); filter: blur(45px); opacity: 0.35;
+            z-index: 1; pointer-events: none; border-radius: 16px;
+        }
+
+        .player-split-row { position: relative; z-index: 2; display: flex; gap: 8px; width: 100%; }
+        .player-split-row.layout-bottom { flex-direction: column; }
+        .pip-zone {
+            position: relative; background: #000; border-radius: 16px; overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 20px 40px rgba(0,0,0,0.6); display: none;
+        }
+        .pip-zone img, .pip-zone video { width: 100%; height: 100%; object-fit: cover; }
+        .pip-zone-label {
+            position: absolute; top: 8px; left: 8px; background: rgba(0,0,0,0.6); color: #fbbf24;
+            font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 4px; text-transform: uppercase; z-index: 5;
+        }
+        .pip-zone.corner-br { position: absolute; bottom: 4%; right: 4%; width: 28%; aspect-ratio: 16/9; z-index: 10; }
+        .pip-zone.corner-tr { position: absolute; top: 4%; right: 4%; width: 28%; aspect-ratio: 16/9; z-index: 10; }
+
+        .player-wrapper {
+            position: relative; width: 100%; aspect-ratio: 16/9; background: #000000; border-radius: 16px;
+            overflow: hidden; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 20px 40px rgba(0,0,0,0.8); z-index: 2;
+        }
+        .player-wrapper:fullscreen, .player-wrapper:-webkit-full-screen {
+            width: 100vw; height: 100vh; aspect-ratio: unset; border-radius: 0;
+            display: flex; align-items: center; justify-content: center; background: #000;
+        }
+        .player-wrapper:fullscreen video, .player-wrapper:-webkit-full-screen video { width: 100%; height: 100%; object-fit: contain; }
+        .player-wrapper.rotated {
+            transform: rotate(90deg); transform-origin: center center; width: 100vh; max-width: 100vh;
+            height: 100vw; position: fixed; top: 50%; left: 50%; margin-top: calc(-50vw); margin-left: calc(-50vh);
+            z-index: 99999999; aspect-ratio: unset;
+        }
+
+        video { width: 100%; height: 100%; object-fit: contain; }
+
+        .player-status-msg {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 80%; max-width: 320px;
+            background: rgba(15,23,42,0.92); border: 1px solid rgba(220,38,38,0.4); color: #fca5a5; font-size: 12.5px;
+            font-weight: 600; text-align: center; padding: 14px 16px; border-radius: 10px; z-index: 999996; display: none; line-height: 1.5;
+        }
+
+        .channel-bug { position: absolute; top: 15px; right: 15px; z-index: 999999; pointer-events: none; animation: toggleLogoVisibility 15s infinite ease-in-out; }
+        @keyframes toggleLogoVisibility { 0% { opacity: 0; } 3% { opacity: 1; } 63% { opacity: 1; } 66.66% { opacity: 0; } 100% { opacity: 0; } }
+        .channel-bug img { height: 38px; width: auto; display: block; filter: drop-shadow(0 2px 8px rgba(0,0,0,0.8)); }
+        .logo-text-fallback { display: none; }
+        .fallback-container { display: flex; align-items: center; gap: 5px; line-height: 1; }
+        .fallback-text-group { display: flex; flex-direction: column; }
+        .fallback-title { text-transform: uppercase; font-size: 15px; font-weight: 900; color: #fff; text-shadow: 0 2px 6px rgba(0,0,0,1); }
+        .fallback-subtitle { text-transform: lowercase; font-size: 10px; font-weight: 600; color: #d1d5db; margin-top: 2px; }
+        .fallback-tv { font-size: 38px; font-weight: 950; color: #3b82f6; font-style: italic; margin-left: 2px; text-shadow: 0 0 12px rgba(59,130,246,0.8); }
+
+        .l-ad-box {
+            position: absolute; width: 200px; aspect-ratio: 16/9; background: rgba(10,14,25,0.55); backdrop-filter: blur(6px);
+            border: 1.5px solid rgba(245,197,24,0.55); border-radius: 10px; z-index: 999998; display: none; overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+        }
+        .l-ad-box.pos-bottom-left { bottom: 95px; left: 16px; }
+        .l-ad-box.pos-bottom-right { bottom: 95px; right: 16px; }
+        .l-ad-box.pos-top-left { top: 70px; left: 16px; }
+        .l-ad-box.pos-top-right { top: 70px; right: 16px; }
+        .l-ad-box.pos-center { top: 50%; left: 50%; transform: translate(-50%, -50%); width: 240px; }
+        .l-ad-box-media { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .l-ad-box-label { position: absolute; top: 6px; left: 6px; background: rgba(0,0,0,0.55); color: #f5c518; font-size: 8.5px; font-weight: 800; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; z-index: 2; }
+
+        .breaking-news-banner {
+            position: absolute; top: 0; left: 0; width: 100%; background: linear-gradient(90deg, #dc2626, #991b1b);
+            display: none; align-items: center; gap: 10px; padding: 8px 12px; z-index: 999997; box-shadow: 0 4px 15px rgba(220,38,38,0.5);
+        }
+        .breaking-news-tag { background: #fff; color: #dc2626; font-size: 10px; font-weight: 900; padding: 3px 8px; border-radius: 4px; flex-shrink: 0; text-transform: uppercase; }
+        .breaking-news-text { color: #fff; font-size: 12.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        .onscreen-top-left { position: absolute; top: 15px; left: 15px; z-index: 999996; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; pointer-events: none; }
+        .onscreen-live-pill { background: #dc2626; color: #fff; padding: 5px 10px; border-radius: 6px; font-size: 10px; font-weight: bold; letter-spacing: 1px; display: none; align-items: center; gap: 4px; box-shadow: 0 0 15px rgba(220,38,38,0.5); }
+        .onscreen-program-badge { background: rgba(15,23,42,0.85); border: 1px solid rgba(59,130,246,0.3); backdrop-filter: blur(4px); padding: 5px 10px; border-radius: 6px; font-size: 11px; font-weight: bold; color: #60a5fa; display: none; white-space: nowrap; max-width: 60vw; overflow: hidden; text-overflow: ellipsis; }
+        .live-dot { width: 7px; height: 7px; background: #fff; border-radius: 50%; animation: blink 1.2s infinite; }
+        @keyframes blink { 0% { opacity: 0.3; } 50% { opacity: 1; } 100% { opacity: 0.3; } }
+
+        .onscreen-ticker { position: absolute; bottom: 0; left: 0; width: 100%; background: rgba(15,23,42,0.92); backdrop-filter: blur(4px); border-top: 1px solid rgba(255,255,255,0.08); padding: 6px 0; overflow: hidden; z-index: 999994; display: none; }
+        .onscreen-ticker-flex { display: flex; align-items: center; width: 100%; }
+        .onscreen-ticker-badge { background: #2563eb; color: #fff; font-size: 9px; font-weight: bold; padding: 3px 8px; text-transform: uppercase; border-radius: 4px; margin-left: 10px; flex-shrink: 0; z-index: 10; }
+        .onscreen-ticker-frame { overflow: hidden; white-space: nowrap; width: 100%; padding-left: 14px; }
+        .onscreen-ticker-text { display: inline-block; padding-left: 100%; animation: tickerMarquee 22s linear infinite; font-size: 11.5px; font-weight: 600; color: #e2e8f0; }
+        @keyframes tickerMarquee { 0% { transform: translate3d(0,0,0); } 100% { transform: translate3d(-100%,0,0); } }
+
+        .custom-controls {
+            position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.4) 70%, transparent 100%);
+            display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; z-index: 999999; opacity: 0;
+            transition: opacity 0.4s ease; gap: 6px; flex-wrap: wrap;
+        }
+        .player-wrapper:hover .custom-controls, .player-wrapper:focus-within .custom-controls { opacity: 1; }
+        .control-group { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+        .control-btn { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.05); color: #fff; font-size: 11px; font-weight: 600; cursor: pointer; padding: 7px 9px; border-radius: 6px; display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+        .control-btn:hover { background: rgba(255,255,255,0.18); }
+        .share-btn { background: linear-gradient(135deg, #2563eb, #1d4ed8); border: none; }
+
+        .quality-container { background: #0f172a; border-radius: 12px; padding: 12px 16px; margin-top: 12px; border: 1px solid rgba(255,255,255,0.04); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+        .quality-label { font-size: 11px; color: #94a3b8; font-weight: 600; letter-spacing: 0.5px; }
+        .quality-select { background: #1e293b; color: #fff; border: 1px solid rgba(255,255,255,0.1); padding: 6px 10px; border-radius: 8px; font-size: 12px; outline: none; cursor: pointer; font-weight: 600; }
+
+        .chat-container { background: #0f172a; border: 1px solid rgba(255,255,255,0.04); border-radius: 16px; height: 100%; min-height: 400px; max-height: 480px; display: flex; flex-direction: column; overflow: hidden; }
+        .chat-header { padding: 14px 16px; background: rgba(255,255,255,0.01); border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: space-between; }
+        .chat-pulse { width: 6px; height: 6px; background: #10b981; border-radius: 50%; }
+        .chat-messages { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+        .chat-msg-block { animation: fadeIn 0.2s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
+        .chat-msg { font-size: 12.5px; line-height: 1.5; position: relative; padding-right: 40px; word-break: break-word; }
+        .chat-user { font-weight: 700; color: #60a5fa; margin-right: 6px; }
+        .chat-user.admin-tag { color: #f59e0b; background: rgba(245,158,11,0.1); padding: 1px 6px; border-radius: 4px; }
+        .chat-text { color: #e2e8f0; }
+        .chat-reply-trigger { position: absolute; right: 0; top: 0; background: none; border: none; color: #64748b; font-size: 10px; cursor: pointer; font-weight: bold; }
+        .chat-reply-trigger:hover { color: #3b82f6; }
+        .chat-reply-thread { margin-top: 6px; margin-left: 18px; padding-left: 10px; border-left: 2px solid rgba(245,158,11,0.4); display: flex; flex-direction: column; gap: 6px; }
+        .chat-reply-thread .chat-msg { padding-right: 0; font-size: 12px; }
+
+        .chat-input-area-wrapper { border-top: 1px solid rgba(255,255,255,0.05); background: rgba(0,0,0,0.2); padding: 10px; }
+        .chat-input-area { display: flex; gap: 8px; }
+        .chat-input { flex: 1; background: #1e293b; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 8px 12px; color: #fff; font-size: 12px; outline: none; }
+        .chat-send { background: #2563eb; border: none; color: #fff; padding: 0 14px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; }
+        .reply-banner { display: none; align-items: center; justify-content: space-between; background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2); color: #fbbf24; font-size: 11px; padding: 6px 10px; border-radius: 6px; margin-bottom: 8px; }
+        .reply-banner button { background: none; border: none; color: #fbbf24; font-weight: bold; cursor: pointer; font-size: 13px; }
+
+        .card { background: #0f172a; border-radius: 14px; padding: 16px; border: 1px solid rgba(255,255,255,0.04); margin-top: 15px; }
+        .card-title-sub { font-size: 11px; color: #f59e0b; font-weight: bold; text-transform: uppercase; margin-bottom: 4px; display: block; }
+        .card-main-text { font-size: 15px; font-weight: 700; color: #f8fafc; }
+        .info-table { background: #0f172a; border-radius: 14px; overflow: hidden; border: 1px solid rgba(255,255,255,0.04); margin-top: 15px; }
+        .table-row { display: flex; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 13px; }
+        .table-row:last-child { border-bottom: none; }
+        .row-label { color: #94a3b8; }
+        .row-value { font-weight: 600; color: #f1f5f9; }
+
+        .schedule-card { background: #0f172a; border: 1px solid rgba(255,255,255,0.04); border-radius: 14px; padding: 16px; margin-top: 15px; }
+        .schedule-title { font-size: 12px; color: #3b82f6; font-weight: bold; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+        .schedule-list { display: flex; flex-direction: column; gap: 10px; }
+        .schedule-item { display: flex; align-items: center; padding: 8px 12px; background: rgba(255,255,255,0.02); border-radius: 8px; border-left: 3px solid #1e4ed8; }
+        .schedule-item.active { border-left-color: #10b981; background: rgba(16,185,129,0.05); }
+        .schedule-time { font-size: 11px; font-weight: 700; color: #94a3b8; width: 90px; flex-shrink: 0; }
+        .schedule-item.active .schedule-time { color: #10b981; }
+        .schedule-name { font-size: 12.5px; font-weight: 600; color: #e2e8f0; }
+
+        .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(100px); background: #10b981; color: #fff; padding: 12px 24px; border-radius: 8px; font-size: 13px; font-weight: 600; box-shadow: 0 10px 25px rgba(16,185,129,0.3); z-index: 10000000; transition: transform 0.3s ease; }
+        .toast.show { transform: translateX(-50%) translateY(0); }
+    </style>
+</head>
+<body>
+
+    <!-- ============== TOPBAR (Daima Inaonekana) ============== -->
+    <div class="platform-topbar">
+        <div class="platform-brand" onclick="goHome()">
+            <div class="platform-brand-text">
+                <span class="platform-brand-title">BAM TECH</span>
+                <span class="platform-brand-subtitle">solutions</span>
+            </div>
+            <span class="platform-brand-mark">TV</span>
+        </div>
+        <button class="back-to-home-btn" id="back-home-btn" onclick="goHome()">← Channel Zote</button>
+    </div>
+
+    <!-- ============== HOME VIEW: CHANNEL GRID ============== -->
+    <div id="home-view">
+        <div class="home-hero">
+            <h1>Chagua Channel</h1>
+            <p>Tazama channel mbalimbali za BAM TECH Solutions na washirika wetu.</p>
+        </div>
+
+        <input type="text" class="channel-search-bar" id="channel-grid-search" placeholder="🔍 Tafuta channel kwa jina...">
+
+        <div class="channel-grid" id="channel-grid">
+            <div class="home-empty-state">Inapakia channel...</div>
+        </div>
+    </div>
+
+    <!-- ============== PLAYER VIEW: CHANNEL MAHUSUSI ============== -->
+    <div id="player-view-container" class="hidden-view">
+
+        <div class="hero-wide">
+            <div class="hero">
+                <h1 id="pv-channel-title">BAM TECH SOLUTIONS TV</h1>
+                <p id="pv-channel-desc">Chaneli ya Kimataifa ya Ubunifu, Sayansi na Habari za Kidijitali kutoka Tanzania.</p>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="player-container-wrapper">
+                <div class="player-glow"></div>
+                <div class="player-split-row" id="player-split-row">
+                <div class="player-wrapper" id="player-wrapper">
+
+                    <div class="onscreen-top-left">
+                        <div class="onscreen-live-pill" id="dyn-live-pill"><span class="live-dot"></span><span id="dyn-live-text">LIVE</span></div>
+                        <div class="onscreen-program-badge" id="dyn-program-badge">Kipindi: ...</div>
+                    </div>
+
+                    <div class="channel-bug">
+                        <img src="" id="tv-logo" alt="Logo" onerror="handleLogoError()">
+                        <div class="logo-text-fallback" id="text-logo">
+                            <div class="fallback-container">
+                                <div class="fallback-text-group">
+                                    <span class="fallback-title">BAM TECH</span>
+                                    <span class="fallback-subtitle">solutions</span>
+                                </div>
+                                <span class="fallback-tv">TV</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="l-ad-box" id="dyn-lstyle-box">
+                        <span class="l-ad-box-label">Tangazo</span>
+                        <img class="l-ad-box-media" id="dyn-lstyle-image" src="" alt="Tangazo" style="display:none;">
+                        <video class="l-ad-box-media" id="dyn-lstyle-video" muted loop autoplay playsinline style="display:none;"></video>
+                    </div>
+
+                    <div class="breaking-news-banner" id="dyn-breaking-banner">
+                        <span class="breaking-news-tag">DHARURA</span>
+                        <span class="breaking-news-text" id="dyn-breaking-text"></span>
+                    </div>
+
+                    <video id="video" autoplay muted playsinline></video>
+
+                    <div id="player-status-msg" class="player-status-msg"></div>
+
+                    <div class="onscreen-ticker" id="dyn-ticker-bar">
+                        <div class="onscreen-ticker-flex">
+                            <span class="onscreen-ticker-badge">BAM TECH</span>
+                            <div class="onscreen-ticker-frame">
+                                <div class="onscreen-ticker-text" id="dyn-ticker-text"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="custom-controls">
+                        <div class="control-group">
+                            <button class="control-btn" id="play-btn" onclick="togglePlay()">❚❚ Sitisha</button>
+                            <button class="control-btn" id="mute-btn" onclick="toggleMute()">🔇 Washa Sauti</button>
+                        </div>
+                        <div class="control-group">
+                            <button class="control-btn" id="rotate-btn" onclick="toggleRotate()">⟳ Pindua</button>
+                            <button class="control-btn share-btn" onclick="shareWebsite()">🔗 Share</button>
+                            <button class="control-btn" onclick="toggleFullscreen()">⛶ Fullscreen</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="pip-zone" id="pip-zone">
+                    <span class="pip-zone-label">Tangazo</span>
+                    <img id="pip-image" src="" alt="Tangazo" style="display:none;">
+                    <video id="pip-video" muted loop autoplay playsinline style="display:none;"></video>
+                </div>
+                </div>
+            </div>
+
+            <div class="quality-container">
+                <span class="quality-label">⚙️ UBORA WA MKURURO (RESOLUTIONS):</span>
+                <select class="quality-select" id="quality-select">
+                    <option value="-1">Auto (Kiotomatiki)</option>
+                </select>
+            </div>
+
+            <div class="card">
+                <span class="card-title-sub">▶ INACHEZWA SASA HIVI</span>
+                <div class="card-main-text" id="dyn-now-playing">Inapakia...</div>
+            </div>
+
+            <div class="info-table">
+                <div class="table-row">
+                    <span class="row-label">Hali ya Matangazo</span>
+                    <span class="row-value" style="color: #10b981;">● HEWANI (ONLINE)</span>
+                </div>
+                <div class="table-row">
+                    <span class="row-label">Idadi ya Watazamaji</span>
+                    <span class="row-value">👁 <span id="viewers">0</span></span>
+                </div>
+                <div class="table-row">
+                    <span class="row-label">Ubora wa Picha</span>
+                    <span class="row-value" id="current-quality-view">Inapakia...</span>
+                </div>
+            </div>
+
+            <div class="schedule-card">
+                <div class="schedule-title">📅 RATIBA YA VIPINDI YA LEO</div>
+                <div class="schedule-list" id="dyn-schedule-list">
+                    <div class="schedule-item"><span class="schedule-name">Ratiba bado haijawekwa.</span></div>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="sidebar-content">
+            <div class="chat-container">
+                <div class="chat-header">
+                    <span>LIVE CHAT MAONI (HALISI)</span>
+                    <span class="chat-pulse"></span>
+                </div>
+                <div class="chat-messages" id="chat-box"></div>
+
+                <div class="chat-input-area-wrapper">
+                    <div class="reply-banner" id="reply-banner">
+                        <span id="reply-banner-text"></span>
+                        <button onclick="cancelReply()">✕</button>
+                    </div>
+                    <div class="chat-input-area">
+                        <input type="text" class="chat-input" placeholder="Andika maoni yako..." id="chat-input" maxlength="300">
+                        <button class="chat-send" onclick="sendRealMessage()">Tuma</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="toast" id="toast-notif">Link imekopiwa kwa ajili ya kushare!</div>
+
+    <script>
+        /* ============== FIREBASE INIT ============== */
+        const firebaseConfig = {
+            apiKey: "AIzaSyAFZkUVmFModH_qCnLRZK_tq7B33ohHDR8",
+            authDomain: "bam-tech-web-app.firebaseapp.com",
+            databaseURL: "https://bam-tech-web-app-default-rtdb.firebaseio.com",
+            projectId: "bam-tech-web-app",
+            storageBucket: "bam-tech-web-app.firebasestorage.app",
+            messagingSenderId: "694615773725",
+            appId: "1:694615773725:web:65ea3521aa0684bf30acf4"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        function escapeHTML(str) {
+            const div = document.createElement('div');
+            div.innerText = str;
+            return div.innerHTML;
+        }
+
+        function hexToRgb(hex) {
+            hex = hex.replace('#', '');
+            if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+            const num = parseInt(hex, 16);
+            return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+        }
+
+        /* ============== ROUTING: HOME vs PLAYER VIEW ============== */
+        let currentChannelId = null;
+        const activeFirebaseListeners = [];
+
+        function getChannelIdFromURL() {
+            const params = new URLSearchParams(window.location.search);
+            return params.get('channel');
+        }
+
+        function goHome() {
+            window.location.href = window.location.pathname;
+        }
+
+        function goToChannel(channelId) {
+            window.location.href = window.location.pathname + '?channel=' + encodeURIComponent(channelId);
+        }
+
+        function showHomeView() {
+            document.getElementById('home-view').classList.remove('hidden-view');
+            document.getElementById('player-view-container').classList.add('hidden-view');
+            document.getElementById('back-home-btn').style.display = 'none';
+            loadChannelGrid();
+        }
+
+        function showPlayerView(channelId) {
+            document.getElementById('home-view').classList.add('hidden-view');
+            document.getElementById('player-view-container').classList.remove('hidden-view');
+            document.getElementById('back-home-btn').style.display = 'flex';
+            currentChannelId = channelId;
+            initChannelPlayer(channelId);
+        }
+
+        /* ============== HOME VIEW: CHANNEL GRID ============== */
+        let allChannelsCache = [];
+
+        function loadChannelGrid() {
+            db.ref('channels_meta').on('value', (snapshot) => {
+                const data = snapshot.val();
+                const grid = document.getElementById('channel-grid');
+
+                if (!data) {
+                    grid.innerHTML = '<div class="home-empty-state">Bado hakuna channel iliyowekwa.</div>';
+                    return;
+                }
+
+                allChannelsCache = Object.entries(data).map(([id, ch]) => ({ id, ...ch }));
+                renderChannelGrid(allChannelsCache);
+                attachViewerCountsToGrid(allChannelsCache.map(c => c.id));
+            });
+        }
+
+        function renderChannelGrid(channels) {
+            const grid = document.getElementById('channel-grid');
+            grid.innerHTML = '';
+
+            if (channels.length === 0) {
+                grid.innerHTML = '<div class="home-empty-state">Hakuna channel iliyolingana na utafutaji wako.</div>';
+                return;
+            }
+
+            channels.forEach((ch) => {
+                const card = document.createElement('div');
+                card.className = 'channel-card';
+                card.innerHTML = `
+                    <div class="channel-card-thumb">
+                        ${ch.logo ? `<img src="${escapeHTML(ch.logo)}" alt="${escapeHTML(ch.name)}" onerror="this.style.display='none'; this.parentElement.querySelector('.fallback-icon').style.display='block';">` : ''}
+                        <span class="fallback-icon" style="${ch.logo ? 'display:none;' : 'display:block;'}">📺</span>
+                        <span class="channel-card-live-pill" id="grid-live-${ch.id}"><span class="live-dot"></span>LIVE</span>
+                        <span class="channel-card-viewers" id="grid-viewers-${ch.id}">👁 0</span>
+                    </div>
+                    <div class="channel-card-info">
+                        <div class="channel-card-name">${escapeHTML(ch.name)}</div>
+                        <div class="channel-card-category">${escapeHTML(ch.category || 'Burudani')}</div>
+                    </div>`;
+                card.addEventListener('click', () => goToChannel(ch.id));
+                grid.appendChild(card);
+            });
+        }
+
+        function attachViewerCountsToGrid(channelIds) {
+            channelIds.forEach(id => {
+                db.ref('channels/' + id + '/presence/viewers').on('value', (snap) => {
+                    const el = document.getElementById('grid-viewers-' + id);
+                    if (el) el.innerText = '👁 ' + snap.numChildren().toLocaleString();
+                });
+                db.ref('channels/' + id + '/tv_config').on('value', (snap) => {
+                    const cfg = snap.val();
+                    const pillEl = document.getElementById('grid-live-' + id);
+                    if (pillEl) pillEl.style.display = (cfg && cfg.showLive) ? 'flex' : 'none';
+                });
+            });
+        }
+
+        document.getElementById('channel-grid-search').addEventListener('input', function() {
+            const query = this.value.trim().toLowerCase();
+            if (query === '') { renderChannelGrid(allChannelsCache); return; }
+            const filtered = allChannelsCache.filter(ch => ch.name.toLowerCase().includes(query));
+            renderChannelGrid(filtered);
+        });
+
+        /* ============== VIDEO PLAYER ============== */
+        let STREAM_URL = '';
+        const video = document.getElementById('video');
+        const playerWrapper = document.getElementById('player-wrapper');
+        const playBtn = document.getElementById('play-btn');
+        const muteBtn = document.getElementById('mute-btn');
+        const qualitySelect = document.getElementById('quality-select');
+        const currentQualityView = document.getElementById('current-quality-view');
+        let hls = null;
+
+        function handleLogoError() {
+            document.getElementById('tv-logo').style.display = 'none';
+            document.getElementById('text-logo').style.display = 'block';
+        }
+
+        function initPlayer() {
+            if (!STREAM_URL || STREAM_URL.trim() === "") return;
+            if (hls) { hls.destroy(); hls = null; }
+
+            const urlLower = STREAM_URL.toLowerCase();
+            const isHlsStream = urlLower.includes('.m3u8') || urlLower.includes('.m3u');
+
+            showPlayerStatus('');
+
+            if (isHlsStream && Hls.isSupported()) {
+                hls = new Hls({ manifestLoadingMaxRetry: 2, manifestLoadingRetryDelay: 1000 });
+                hls.loadSource(STREAM_URL);
+                hls.attachMedia(video);
+
+                hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                    video.play().catch(() => {});
+                    setupQualitySelector(hls);
+                    showPlayerStatus('');
+                });
+
+                hls.on(Hls.Events.LEVEL_SWITCHED, function(event, data) {
+                    const activeLevel = hls.levels[data.level];
+                    if (activeLevel) {
+                        let levelHeight = activeLevel.height;
+                        let qualityLabel = levelHeight + "p";
+                        if (levelHeight >= 1080) qualityLabel += " Ultra Full HD";
+                        else if (levelHeight >= 720) qualityLabel += " HD High Quality";
+                        else qualityLabel += " SD Standard";
+                        currentQualityView.innerText = qualityLabel;
+                    }
+                });
+
+                hls.on(Hls.Events.ERROR, function(event, data) {
+                    if (data.fatal) {
+                        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+                            hls.destroy(); hls = null;
+                            tryNativePlayback();
+                        } else {
+                            showPlayerStatus('Stream hii haikubaliki kuchezwa kwenye browser (huenda ina ulinzi wa provider). Jaribu link nyingine.');
+                        }
+                    }
+                });
+
+            } else if (isHlsStream && video.canPlayType('application/vnd.apple.mpegurl')) {
+                tryNativePlayback();
+                qualitySelect.innerHTML = '<option>Auto (iOS Engine)</option>';
+                currentQualityView.innerText = "Kiotomatiki (Apple)";
+            } else {
+                video.src = STREAM_URL;
+                video.play().catch(() => {});
+                qualitySelect.innerHTML = '<option value="-1">Auto (Kawaida)</option>';
+                currentQualityView.innerText = "Kiotomatiki (Video ya Kawaida)";
+                video.onerror = function() { showPlayerStatus('Imeshindwa kucheza link hii.'); };
+            }
+        }
+
+        function tryNativePlayback() {
+            video.src = STREAM_URL;
+            video.addEventListener('loadedmetadata', function() { video.play().catch(() => {}); }, { once: true });
+            video.onerror = function() {
+                showPlayerStatus('Stream hii imekataa kuchezwa - huenda provider ana ulinzi (geo-block/referrer-lock).');
+            };
+        }
+
+        function showPlayerStatus(message) {
+            const statusEl = document.getElementById('player-status-msg');
+            if (!statusEl) return;
+            if (message === '') { statusEl.style.display = 'none'; }
+            else { statusEl.innerText = message; statusEl.style.display = 'block'; }
+        }
+
+        function setupQualitySelector(hlsInstance) {
+            qualitySelect.innerHTML = '<option value="-1">Auto (Mabadiliko Halisi)</option>';
+            hlsInstance.levels.forEach((level, index) => {
+                const name = level.height ? level.height + "p" : "Ubora " + (index + 1);
+                const option = document.createElement('option');
+                option.value = index;
+                option.innerText = name;
+                qualitySelect.appendChild(option);
+            });
+            qualitySelect.onchange = (e) => { hlsInstance.currentLevel = parseInt(e.target.value); };
+        }
+
+        /* ============== CHANNEL-SPECIFIC FIREBASE LISTENERS ============== */
+        function initChannelPlayer(channelId) {
+            const chRef = db.ref('channels/' + channelId);
+
+            // Taarifa za msingi za channel (jina, maelezo)
+            db.ref('channels_meta/' + channelId).once('value').then(snap => {
+                const meta = snap.val();
+                if (meta) {
+                    document.getElementById('pv-channel-title').innerText = meta.name || 'BAM TECH TV';
+                    document.getElementById('pv-channel-desc').innerText = meta.description || '';
+                    document.title = (meta.name || 'BAM TECH TV') + ' | Live';
+                    if (meta.logo) document.getElementById('tv-logo').src = meta.logo;
+                    else handleLogoError();
+                } else {
+                    handleLogoError();
+                }
+            });
+
+            // TV CONFIG (stream, ticker, live badge, jina la kipindi)
+            chRef.child('tv_config').on('value', (snapshot) => {
+                const config = snapshot.val();
+                if (!config) return;
+
+                if (config.streamUrl && config.streamUrl.trim() !== "" && config.streamUrl !== STREAM_URL) {
+                    STREAM_URL = config.streamUrl;
+                    initPlayer();
+                }
+
+                let progBadge = document.getElementById('dyn-program-badge');
+                if (config.programTitle && config.programTitle.trim() !== "") {
+                    progBadge.innerText = config.programTitle;
+                    progBadge.style.display = 'block';
+                    document.getElementById('dyn-now-playing').innerText = config.programTitle;
+                } else {
+                    progBadge.style.display = 'none';
+                }
+
+                let livePill = document.getElementById('dyn-live-pill');
+                if (config.showLive) {
+                    document.getElementById('dyn-live-text').innerText = config.liveText || 'LIVE';
+                    livePill.style.display = 'flex';
+                } else {
+                    livePill.style.display = 'none';
+                }
+
+                let lstyleBox = document.getElementById('dyn-lstyle-box');
+                const lstyleImg = document.getElementById('dyn-lstyle-image');
+                const lstyleVid = document.getElementById('dyn-lstyle-video');
+                if (config.showLStyle && config.adMediaUrl && config.adMediaUrl.trim() !== "") {
+                    lstyleBox.classList.remove('pos-bottom-left', 'pos-bottom-right', 'pos-top-left', 'pos-top-right', 'pos-center');
+                    lstyleBox.classList.add('pos-' + (config.adPosition || 'bottom-left'));
+                    if (config.adMediaType === 'video') {
+                        if (lstyleVid.src !== config.adMediaUrl) { lstyleVid.src = config.adMediaUrl; lstyleVid.play().catch(() => {}); }
+                        lstyleVid.style.display = 'block'; lstyleImg.style.display = 'none';
+                    } else {
+                        lstyleImg.src = config.adMediaUrl;
+                        lstyleImg.style.display = 'block'; lstyleVid.style.display = 'none';
+                    }
+                    lstyleBox.style.display = 'block';
+                } else {
+                    lstyleBox.style.display = 'none';
+                }
+
+                let tickerBar = document.getElementById('dyn-ticker-bar');
+                if (config.showTicker && config.ticker && config.ticker.trim() !== "") {
+                    const tickerTextEl = document.getElementById('dyn-ticker-text');
+                    tickerTextEl.innerText = config.ticker;
+                    tickerTextEl.style.fontSize = (config.tickerFontSize || 11.5) + 'px';
+                    tickerTextEl.style.fontFamily = config.tickerFontFamily || "'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+                    tickerTextEl.style.color = config.tickerTextColor || '#e2e8f0';
+                    tickerTextEl.style.animationDuration = (config.tickerSpeed || 22) + 's';
+                    const bgColor = config.tickerBgColor || '#0f172a';
+                    const bgOpacity = (config.tickerBgOpacity !== undefined) ? config.tickerBgOpacity : 0.92;
+                    const rgbVals = hexToRgb(bgColor);
+                    tickerBar.style.background = `rgba(${rgbVals.r}, ${rgbVals.g}, ${rgbVals.b}, ${bgOpacity})`;
+                    tickerBar.style.padding = (config.tickerBarHeight || 6) + 'px 0';
+                    tickerBar.style.display = 'block';
+                } else {
+                    tickerBar.style.display = 'none';
+                }
+            });
+
+            db.ref('channels_meta/' + channelId + '/category').once('value'); // harmless warm-up
+
+            // Breaking news
+            chRef.child('breaking_news').on('value', (snapshot) => {
+                const news = snapshot.val();
+                const banner = document.getElementById('dyn-breaking-banner');
+                const topLeftZone = document.querySelector('.onscreen-top-left');
+                if (news && news.active && news.text && news.text.trim() !== "") {
+                    document.getElementById('dyn-breaking-text').innerText = news.text;
+                    banner.style.display = 'flex';
+                    topLeftZone.style.top = '50px';
+                } else {
+                    banner.style.display = 'none';
+                    topLeftZone.style.top = '15px';
+                }
+            });
+
+            // EPG
+            chRef.child('epg').on('value', (snapshot) => {
+                const epgData = snapshot.val();
+                const listEl = document.getElementById('dyn-schedule-list');
+                if (!epgData) return;
+                const items = Object.values(epgData).sort((a, b) => (a.order || 0) - (b.order || 0));
+                if (items.length === 0) return;
+                listEl.innerHTML = '';
+                items.forEach((item) => {
+                    const div = document.createElement('div');
+                    div.className = 'schedule-item' + (item.active ? ' active' : '');
+                    div.innerHTML = `<span class="schedule-time">${escapeHTML(item.time || '')}${item.active ? ' - LIVE' : ''}</span>
+                                      <span class="schedule-name">${escapeHTML(item.name || '')}</span>`;
+                    listEl.appendChild(div);
+                });
+            });
+
+            // Layout / PiP
+            const splitRow = document.getElementById('player-split-row');
+            const pipZone = document.getElementById('pip-zone');
+            const pipImage = document.getElementById('pip-image');
+            const pipVideo = document.getElementById('pip-video');
+
+            chRef.child('layout_config').on('value', (snapshot) => {
+                const cfg = snapshot.val();
+                splitRow.classList.remove('layout-bottom');
+                pipZone.classList.remove('corner-br', 'corner-tr');
+                pipZone.style.width = ''; pipZone.style.position = '';
+                playerWrapper.style.flex = ''; playerWrapper.style.width = '';
+
+                if (!cfg || !cfg.enabled || !cfg.mediaUrl || cfg.mediaUrl.trim() === "") {
+                    pipZone.style.display = 'none';
+                    pipImage.style.display = 'none'; pipVideo.style.display = 'none';
+                    return;
+                }
+
+                const ratio = parseInt(cfg.mainRatio) || 75;
+                const position = cfg.position || 'right';
+                pipZone.style.display = 'block';
+
+                if (position === 'right') {
+                    playerWrapper.style.flex = `0 0 ${ratio}%`;
+                    pipZone.style.flex = `0 0 ${100 - ratio - 1}%`;
+                    pipZone.style.aspectRatio = '16/9';
+                } else if (position === 'bottom') {
+                    splitRow.classList.add('layout-bottom');
+                    playerWrapper.style.flex = 'none'; playerWrapper.style.aspectRatio = '16/9';
+                    pipZone.style.flex = 'none'; pipZone.style.aspectRatio = '16/5';
+                } else if (position === 'corner-br') {
+                    pipZone.classList.add('corner-br');
+                } else if (position === 'corner-tr') {
+                    pipZone.classList.add('corner-tr');
+                }
+
+                if (cfg.mediaType === 'video') {
+                    pipVideo.src = cfg.mediaUrl; pipVideo.style.display = 'block'; pipImage.style.display = 'none';
+                    pipVideo.play().catch(() => {});
+                } else {
+                    pipImage.src = cfg.mediaUrl; pipImage.style.display = 'block'; pipVideo.style.display = 'none';
+                }
+            });
+
+            // Presence (idadi ya watazamaji)
+            const myViewerRef = chRef.child('presence/viewers').push();
+            myViewerRef.set(true);
+            myViewerRef.onDisconnect().remove();
+            chRef.child('presence/viewers').on('value', (snapshot) => {
+                document.getElementById('viewers').innerText = snapshot.numChildren().toLocaleString();
+            });
+
+            // Live chat
+            initChannelChat(chRef);
+        }
+
+        /* ============== LIVE CHAT (channel-mahususi) ============== */
+        function initChannelChat(chRef) {
+            const chatBox = document.getElementById('chat-box');
+            chatBox.innerHTML = '';
+            const renderedMessages = {};
+
+            chRef.child('chat_messages').limitToLast(100).on('child_added', (snapshot) => {
+                renderMessage(snapshot.key, snapshot.val());
+            });
+            chRef.child('chat_messages').on('child_changed', (snapshot) => {
+                if (snapshot.val().replies) renderReplies(snapshot.key, snapshot.val().replies);
+            });
+
+            function renderMessage(msgId, data) {
+                if (renderedMessages[msgId]) return;
+                const block = document.createElement('div');
+                block.className = 'chat-msg-block';
+                block.id = 'msgblock-' + msgId;
+                const isAdmin = data.isAdmin === true;
+                const userTagClass = isAdmin ? 'chat-user admin-tag' : 'chat-user';
+                const userLabel = isAdmin ? 'Admin' : (data.user || 'Mhudhuriaji');
+                const safeLabel = escapeHTML(userLabel);
+
+                const msgDiv = document.createElement('div');
+                msgDiv.className = 'chat-msg';
+                msgDiv.innerHTML = `<span class="${userTagClass}">${safeLabel}:</span><span class="chat-text">${escapeHTML(data.text)}</span>
+                                    <button class="chat-reply-trigger" data-msgid="${msgId}" data-userlabel="${safeLabel}">[Jibu]</button>`;
+                block.appendChild(msgDiv);
+                msgDiv.querySelector('.chat-reply-trigger').addEventListener('click', function() {
+                    startReply(this.getAttribute('data-msgid'), this.getAttribute('data-userlabel'));
+                });
+
+                const threadDiv = document.createElement('div');
+                threadDiv.className = 'chat-reply-thread';
+                threadDiv.id = 'thread-' + msgId;
+                block.appendChild(threadDiv);
+
+                chatBox.appendChild(block);
+                chatBox.scrollTop = chatBox.scrollHeight;
+                renderedMessages[msgId] = true;
+                if (data.replies) renderReplies(msgId, data.replies);
+            }
+
+            function renderReplies(msgId, replies) {
+                const threadDiv = document.getElementById('thread-' + msgId);
+                if (!threadDiv) return;
+                threadDiv.innerHTML = '';
+                Object.values(replies).forEach((reply) => {
+                    const replyDiv = document.createElement('div');
+                    replyDiv.className = 'chat-msg';
+                    replyDiv.innerHTML = `<span class="chat-user admin-tag">Admin:</span><span class="chat-text">${escapeHTML(reply.text)}</span>`;
+                    threadDiv.appendChild(replyDiv);
+                });
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }
+
+            window._currentChatSend = function(text, replyTargetId) {
+                if (replyTargetId) {
+                    chRef.child('chat_messages/' + replyTargetId).once('value').then((snap) => {
+                        if (!snap.exists()) return;
+                        const newReplyKey = chRef.push().key;
+                        chRef.child('chat_messages/' + replyTargetId + '/replies/' + newReplyKey).set({
+                            text: text, time: Date.now(), fromViewer: true
+                        });
+                    });
+                } else {
+                    chRef.child('chat_messages').push({ user: 'Mhudhuriaji', text: text, time: Date.now(), isAdmin: false });
+                }
+            };
+        }
+
+        const chatInput = document.getElementById('chat-input');
+        const replyBanner = document.getElementById('reply-banner');
+        const replyBannerText = document.getElementById('reply-banner-text');
+        let replyTargetId = null;
+
+        function startReply(msgId, userLabel) {
+            replyTargetId = msgId;
+            replyBannerText.innerText = `Unajibu @${userLabel}`;
+            replyBanner.style.display = 'flex';
+            chatInput.focus();
+        }
+
+        function cancelReply() {
+            replyTargetId = null;
+            replyBanner.style.display = 'none';
+        }
+
+        function sendRealMessage() {
+            const text = chatInput.value.trim();
+            if (text === "" || !window._currentChatSend) return;
+            window._currentChatSend(text, replyTargetId);
+            cancelReply();
+            chatInput.value = "";
+        }
+        chatInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendRealMessage(); });
+
+        /* ============== UDHIBITI WA PLAYER ============== */
+        function togglePlay() {
+            if (video.paused) { video.play(); playBtn.innerText = '❚❚ Sitisha'; }
+            else { video.pause(); playBtn.innerText = '▶ Cheza'; }
+        }
+        function toggleMute() {
+            if (video.muted) { video.muted = false; muteBtn.innerText = '🔊 Zima Sauti'; }
+            else { video.muted = true; muteBtn.innerText = '🔇 Washa Sauti'; }
+        }
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) { playerWrapper.requestFullscreen().catch(() => {}); }
+            else { document.exitFullscreen(); }
+        }
+        function toggleRotate() {
+            playerWrapper.classList.toggle('rotated');
+            document.body.style.overflow = playerWrapper.classList.contains('rotated') ? 'hidden' : '';
+        }
+        function shareWebsite() {
+            navigator.clipboard.writeText(window.location.href);
+            const toast = document.getElementById('toast-notif');
+            toast.classList.add('show');
+            setTimeout(() => { toast.classList.remove('show'); }, 3000);
+        }
+
+        /* ============== KUANZA: ANGALIA URL NA CHAGUA VIEW SAHIHI ============== */
+        (function boot() {
+            const channelId = getChannelIdFromURL();
+            if (channelId) { showPlayerView(channelId); }
+            else { showHomeView(); }
+        })();
+    </script>
+</body>
+</html>
 
