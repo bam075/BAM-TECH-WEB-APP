@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>BAM TECH Solutions | Streaming Platform</title>
+    <title>BAM TECH WEB APP | Streaming Platform</title>
 
     <!-- KUZUIA CACHE YA ZAMANI -->
     <script>
@@ -41,7 +41,7 @@
         .platform-brand-text { display: flex; flex-direction: column; line-height: 1; }
         .platform-brand-title { font-size: 16px; font-weight: 900; color: #fff; letter-spacing: 0.6px; text-transform: uppercase; }
         .platform-brand-subtitle { font-size: 9px; font-weight: 500; color: #64748b; text-transform: lowercase; letter-spacing: 1px; }
-        .platform-brand-mark { font-size: 32px; font-weight: 950; font-style: italic; background: linear-gradient(135deg, #3b82f6, #1d4ed8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; line-height: 0.8; filter: drop-shadow(0 0 12px rgba(59,130,246,0.5)); }
+        .platform-brand-mark { font-size: 22px; font-weight: 950; font-style: italic; background: linear-gradient(135deg, #3b82f6, #1d4ed8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; line-height: 0.8; filter: drop-shadow(0 0 12px rgba(59,130,246,0.5)); letter-spacing: 1px; }
         .back-to-home-btn {
             background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: #fff;
             padding: 8px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; display: none;
@@ -260,9 +260,9 @@
         <div class="platform-brand" onclick="goHome()">
             <div class="platform-brand-text">
                 <span class="platform-brand-title">BAM TECH</span>
-                <span class="platform-brand-subtitle">solutions</span>
+                <span class="platform-brand-subtitle">web app</span>
             </div>
-            <span class="platform-brand-mark">TV</span>
+            <span class="platform-brand-mark">APP</span>
         </div>
         <button class="back-to-home-btn" id="back-home-btn" onclick="goHome()">← Channel Zote</button>
     </div>
@@ -271,7 +271,7 @@
     <div id="home-view">
         <div class="home-hero">
             <h1>Chagua Channel</h1>
-            <p>Tazama channel mbalimbali za BAM TECH Solutions na washirika wetu.</p>
+            <p>Tazama channel mbalimbali za BAM TECH WEB APP na washirika wetu.</p>
         </div>
 
         <input type="text" class="channel-search-bar" id="channel-grid-search" placeholder="🔍 Tafuta channel kwa jina...">
@@ -434,6 +434,22 @@
         };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
+
+        /* ============== LEGACY DATABASE (BAM TECH TV ya zamani) ==============
+           Hii inaunganisha na database ya zamani ya BAM TECH TV ili channel
+           iliyowekwa alama ya "isLegacySync" iweze kusoma tv_config/epg/breaking_news
+           kutoka huko moja kwa moja, bila kuhitaji admin mbili tofauti. */
+        const legacyFirebaseConfig = {
+            apiKey: "AIzaSyAh7LRqKy5RfLUr0tpqA47TV7YnBvuB5F8",
+            authDomain: "bam-tech-solutions-tv.firebaseapp.com",
+            databaseURL: "https://bam-tech-solutions-tv-default-rtdb.firebaseio.com",
+            projectId: "bam-tech-solutions-tv",
+            storageBucket: "bam-tech-solutions-tv.firebasestorage.app",
+            messagingSenderId: "1013751123351",
+            appId: "1:1013751123351:web:173b1884f221699bb5c8d2"
+        };
+        const legacyApp = firebase.initializeApp(legacyFirebaseConfig, "legacyApp");
+        const legacyDb = legacyApp.database();
 
         function escapeHTML(str) {
             const div = document.createElement('div');
@@ -647,25 +663,32 @@
         }
 
         /* ============== CHANNEL-SPECIFIC FIREBASE LISTENERS ============== */
-        function initChannelPlayer(channelId) {
-            const chRef = db.ref('channels/' + channelId);
+        async function initChannelPlayer(channelId) {
+            const chRef = db.ref('channels/' + channelId); // database mpya - kwa presence na chat daima
+            let contentRef = chRef; // default: content (tv_config/epg/breaking_news/layout) kutoka database mpya
 
-            // Taarifa za msingi za channel (jina, maelezo)
-            db.ref('channels_meta/' + channelId).once('value').then(snap => {
-                const meta = snap.val();
-                if (meta) {
-                    document.getElementById('pv-channel-title').innerText = meta.name || 'BAM TECH TV';
-                    document.getElementById('pv-channel-desc').innerText = meta.description || '';
-                    document.title = (meta.name || 'BAM TECH TV') + ' | Live';
-                    if (meta.logo) document.getElementById('tv-logo').src = meta.logo;
-                    else handleLogoError();
-                } else {
-                    handleLogoError();
+            // Taarifa za msingi za channel (jina, maelezo, na kuangalia legacy sync)
+            const metaSnap = await db.ref('channels_meta/' + channelId).once('value');
+            const meta = metaSnap.val();
+
+            if (meta) {
+                document.getElementById('pv-channel-title').innerText = meta.name || 'BAM TECH TV';
+                document.getElementById('pv-channel-desc').innerText = meta.description || '';
+                document.title = (meta.name || 'BAM TECH TV') + ' | Live';
+                if (meta.logo) document.getElementById('tv-logo').src = meta.logo;
+                else handleLogoError();
+
+                if (meta.isLegacySync === true) {
+                    // Hii channel inasoma content (video/ticker/EPG/breaking news) moja kwa moja
+                    // kutoka database ya zamani ya BAM TECH TV, badala ya database mpya.
+                    contentRef = legacyDb.ref();
                 }
-            });
+            } else {
+                handleLogoError();
+            }
 
             // TV CONFIG (stream, ticker, live badge, jina la kipindi)
-            chRef.child('tv_config').on('value', (snapshot) => {
+            contentRef.child('tv_config').on('value', (snapshot) => {
                 const config = snapshot.val();
                 if (!config) return;
 
@@ -728,10 +751,8 @@
                 }
             });
 
-            db.ref('channels_meta/' + channelId + '/category').once('value'); // harmless warm-up
-
             // Breaking news
-            chRef.child('breaking_news').on('value', (snapshot) => {
+            contentRef.child('breaking_news').on('value', (snapshot) => {
                 const news = snapshot.val();
                 const banner = document.getElementById('dyn-breaking-banner');
                 const topLeftZone = document.querySelector('.onscreen-top-left');
@@ -746,7 +767,7 @@
             });
 
             // EPG
-            chRef.child('epg').on('value', (snapshot) => {
+            contentRef.child('epg').on('value', (snapshot) => {
                 const epgData = snapshot.val();
                 const listEl = document.getElementById('dyn-schedule-list');
                 if (!epgData) return;
@@ -768,7 +789,7 @@
             const pipImage = document.getElementById('pip-image');
             const pipVideo = document.getElementById('pip-video');
 
-            chRef.child('layout_config').on('value', (snapshot) => {
+            contentRef.child('layout_config').on('value', (snapshot) => {
                 const cfg = snapshot.val();
                 splitRow.classList.remove('layout-bottom');
                 pipZone.classList.remove('corner-br', 'corner-tr');
@@ -807,7 +828,7 @@
                 }
             });
 
-            // Presence (idadi ya watazamaji)
+            // Presence (idadi ya watazamaji) - DAIMA database mpya, hata kwa legacy-sync channels
             const myViewerRef = chRef.child('presence/viewers').push();
             myViewerRef.set(true);
             myViewerRef.onDisconnect().remove();
@@ -949,4 +970,3 @@
     </script>
 </body>
 </html>
-
