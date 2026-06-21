@@ -257,6 +257,7 @@
         <button onclick="unlockDashboard()" style="width:100%;" id="unlock-btn">INGIA DASHBODI</button>
         <p class="lock-error" id="lock-error">❌ PIN sio sahihi! Jaribu tena.</p>
         <p class="lock-timer" id="lock-timer"></p>
+        <button onclick="forceResetLockout()" style="width:100%; margin-top:10px; background:#1e293b; border:1px solid rgba(255,255,255,0.1); font-size:11px; padding:8px;">🔓 Nimezuiwa Kimakosa - Futa Hii Restriction</button>
     </div>
 
     <!-- ============== CHANNEL SELECTOR (Orodha ya Channel Zote) ============== -->
@@ -763,6 +764,14 @@
         }
         function setLockState(state) {
             localStorage.setItem('bam_admin_lock', JSON.stringify(state));
+        }
+
+        function forceResetLockout() {
+            localStorage.removeItem('bam_admin_lock');
+            document.getElementById('unlock-btn').disabled = false;
+            document.getElementById('lock-timer').style.display = 'none';
+            document.getElementById('lock-error').style.display = 'none';
+            alert('Sawa! Restriction imefutwa. Jaribu kuingia tena na PIN sahihi.');
         }
 
         function checkLockoutOnLoad() {
@@ -1795,17 +1804,4 @@
                     const statusLabel = item.executed ? ' · IMETEKELEZWA' : '';
                     div.innerHTML = `
                         <div class="scheduled-item-info">
-                            <div class="scheduled-item-time">${dateLabel}${statusLabel}</div>
-                            <div class="scheduled-item-desc">${escapeHTML(item.programTitle)} ${item.liveMode !== 'OFF' ? '· ' + item.liveMode : ''}</div>
-                        </div>
-                        <button class="btn-danger btn-small" data-key="${key}">Futa</button>`;
-                    div.querySelector('button').addEventListener('click', () => {
-                        channelRef.child('scheduled_changes/' + key).remove();
-                    });
-                    list.appendChild(div);
-                });
-            });
-        }
-
-        function addScheduledItem() {
-            const timeVal
+                            <div class="scheduled-item-time">${dateLabel}${status
