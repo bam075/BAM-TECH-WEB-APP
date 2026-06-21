@@ -803,19 +803,40 @@
         }
 
         function unlockDashboard() {
+            debugLog('1. Kitufe kimebonyezwa, unlockDashboard() imepigwa');
             const state = getLockState();
+            debugLog('2. Lock state: attempts=' + state.attempts + ', lockedUntil=' + state.lockedUntil);
+
             if (state.lockedUntil && Date.now() < state.lockedUntil) {
+                debugLog('3. BADO UMEZUIWA - lockedUntil bado haijapita');
                 disableLoginTemporarily(state.lockedUntil);
                 return;
             }
 
             const pin = document.getElementById('master-pin').value;
+            debugLog('4. PIN uliyoandika ina urefu wa: ' + pin.length + ' herufi');
+            debugLog('5. MASTER_PIN halisi ina urefu wa: ' + MASTER_PIN.length + ' herufi');
+            debugLog('6. Je zinafanana? ' + (pin === MASTER_PIN));
+
             if (pin === MASTER_PIN) {
+                debugLog('7. PIN SAHIHI! Kuendelea kuingia...');
                 setLockState({ attempts: 0, lockedUntil: 0 });
                 document.getElementById('gatekeeper').style.display = 'none';
-                recordAdminLogin();
-                showChannelSelector();
+                debugLog('8. Gatekeeper imefichwa, kupiga recordAdminLogin()...');
+                try {
+                    recordAdminLogin();
+                    debugLog('9. recordAdminLogin() imekamilika, kupiga showChannelSelector()...');
+                } catch (e) {
+                    debugLog('9b. ERROR kwenye recordAdminLogin: ' + e.message);
+                }
+                try {
+                    showChannelSelector();
+                    debugLog('10. showChannelSelector() imekamilika!');
+                } catch (e) {
+                    debugLog('10b. ERROR kwenye showChannelSelector: ' + e.message + ' | Stack: ' + e.stack);
+                }
             } else {
+                debugLog('7b. PIN SI SAHIHI - haifanani na MASTER_PIN');
                 const attempts = (state.attempts || 0) + 1;
                 document.getElementById('lock-error').style.display = 'block';
                 document.getElementById('master-pin').value = '';
@@ -830,11 +851,40 @@
             }
         }
 
+        function debugLog(msg) {
+            let panel = document.getElementById('debug-log-panel');
+            if (!panel) {
+                panel = document.createElement('div');
+                panel.id = 'debug-log-panel';
+                panel.style.position = 'fixed';
+                panel.style.top = '0';
+                panel.style.left = '0';
+                panel.style.right = '0';
+                panel.style.maxHeight = '60vh';
+                panel.style.overflowY = 'auto';
+                panel.style.background = 'rgba(0,0,0,0.95)';
+                panel.style.color = '#10b981';
+                panel.style.fontSize = '11px';
+                panel.style.fontFamily = 'monospace';
+                panel.style.padding = '10px';
+                panel.style.zIndex = '999999999';
+                panel.style.borderBottom = '2px solid #10b981';
+                document.body.appendChild(panel);
+            }
+            const line = document.createElement('div');
+            line.style.borderBottom = '1px solid rgba(255,255,255,0.1)';
+            line.style.padding = '3px 0';
+            line.innerText = msg;
+            panel.appendChild(line);
+            panel.scrollTop = panel.scrollHeight;
+        }
+
         document.getElementById('master-pin').addEventListener('keydown', (e) => {
             if (e.key === 'Enter') unlockDashboard();
         });
 
         checkLockoutOnLoad();
+        debugLog('✅ SCRIPT IMEPAKIA SAHIHI - VERSION: DEBUG-v1 - ' + new Date().toLocaleTimeString());
 
         /* ============== CHANNEL SELECTOR ============== */
         let activeChannelId = null;
@@ -1760,48 +1810,4 @@
                 return updates;
             }
 
-            if (mode === 'replace') {
-                channelRef.child('epg').remove().then(() => {
-                    const updates = pushItems(1);
-                    channelRef.update(updates).then(() => {
-                        document.getElementById('bulk-epg-input').value = '';
-                        showToast(`Ratiba Mpya Imewekwa (${parsedItems.length} vipindi) ✓`);
-                        db.ref('admin_logs').push({ time: Date.now(), action: `Aliweka ratiba mpya (${parsedItems.length} vipindi, mode: replace)` });
-                    });
-                });
-            } else {
-                channelRef.child('epg').once('value').then(snap => {
-                    const data = snap.val() || {};
-                    const maxOrder = Object.values(data).reduce((m, it) => Math.max(m, it.order || 0), 0);
-                    const updates = pushItems(maxOrder + 1);
-                    channelRef.update(updates).then(() => {
-                        document.getElementById('bulk-epg-input').value = '';
-                        const count = mode === 'week' ? parsedItems.length * 7 : parsedItems.length;
-                        showToast(`Vipindi ${count} Vimeongezwa Kwenye Ratiba ✓`);
-                        db.ref('admin_logs').push({ time: Date.now(), action: `Aliongeza vipindi ${count} kwenye ratiba (mode: ${mode})` });
-                    });
-                });
-            }
-        }
-
-        /* ============== SCHEDULER TAB (kupanga mapema) ============== */
-        function startSchedulerListener() {
-            channelRef.child('scheduled_changes').on('value', (snapshot) => {
-                const data = snapshot.val();
-                const list = document.getElementById('scheduled-list');
-                list.innerHTML = '';
-
-                if (!data) {
-                    list.innerHTML = '<div class="empty-state">Bado hakuna mpango uliopangwa...</div>';
-                    return;
-                }
-
-                const entries = Object.entries(data).sort((a, b) => a[1].triggerTime - b[1].triggerTime);
-                entries.forEach(([key, item]) => {
-                    const div = document.createElement('div');
-                    div.className = 'scheduled-item';
-                    const dateLabel = new Date(item.triggerTime).toLocaleString('sw-TZ');
-                    const statusLabel = item.executed ? ' · IMETEKELEZWA' : '';
-                    div.innerHTML = `
-                        <div class="scheduled-item-info">
-                            <div class="scheduled-item-time">${dateLabel}${status
+    
